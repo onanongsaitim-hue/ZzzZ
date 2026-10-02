@@ -1,0 +1,188 @@
+-- Roblox LocalGUI Script: Hitbox & FPS Booster
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer
+
+-- Variables for Settings
+local headSize = 1.2
+local bodySize = 2.0
+local hitboxEnabled = false
+local boostFPSEnabled = false
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CustomUtilityGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Main Frame (UI Window)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 300, 0, 340)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -170)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true -- สามารถลากหน้าต่างได้
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = mainFrame
+
+-- Title Bar
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+title.Text = "Menu Utility UI"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 18
+title.Font = Enum.Font.SourceSansBold
+title.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = title
+
+-- Helper Function to Create Buttons & Inputs
+local function createButton(name, text, position)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Size = UDim2.new(0.9, 0, 0, 35)
+    btn.Position = position
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.SourceSans
+    btn.Parent = mainFrame
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = btn
+    
+    return btn
+end
+
+local function createTextBox(name, placeholder, position)
+    local box = Instance.new("TextBox")
+    box.Name = name
+    box.Size = UDim2.new(0.9, 0, 0, 30)
+    box.Position = position
+    box.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    box.PlaceholderText = placeholder
+    box.Text = ""
+    box.TextColor3 = Color3.fromRGB(255, 255, 255)
+    box.TextSize = 14
+    box.Font = Enum.Font.SourceSans
+    box.Parent = mainFrame
+    
+    local boxCorner = Instance.new("UICorner")
+    boxCorner.CornerRadius = UDim.new(0, 6)
+    boxCorner.Parent = box
+    
+    return box
+end
+
+-- UI Elements Placement
+local toggleHitboxBtn = createButton("ToggleHitbox", "1-2. สวิตช์เปิด/ปิด Hitbox: [OFF]", UDim2.new(0.05, 0, 0.15, 0))
+
+local headInput = createTextBox("HeadInput", "ขนาด Hitbox หัว (ปกติ: 1.2)", UDim2.new(0.05, 0, 0.28, 0))
+local bodyInput = createTextBox("BodyInput", "ขนาด Hitbox ตัว (ปกติ: 2.0)", UDim2.new(0.05, 0, 0.40, 0))
+
+local boostFPSBtn = createButton("BoostFPS", "3. Boost FPS (ลดเอฟเฟกต์): [OFF]", UDim2.new(0.05, 0, 0.55, 0))
+
+-- Function 1 & 2: Hitbox Expansion Logic
+toggleHitboxBtn.MouseButton1Click:Connect(function()
+    hitboxEnabled = not hitboxEnabled
+    if hitboxEnabled then
+        toggleHitboxBtn.Text = "1-2. สวิตช์เปิด/ปิด Hitbox: [ON]"
+        toggleHitboxBtn.BackgroundColor3 = Color3.fromRGB(46, 139, 87)
+    else
+        toggleHitboxBtn.Text = "1-2. สวิตช์เปิด/ปิด Hitbox: [OFF]"
+        toggleHitboxBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    end
+end)
+
+headInput.FocusLost:Connect(function()
+    local val = tonumber(headInput.Text)
+    if val then
+        headSize = val
+    end
+end)
+
+bodyInput.FocusLost:Connect(function()
+    local val = tonumber(bodyInput.Text)
+    if val then
+        bodySize = val
+    end
+end)
+
+-- Loop to Apply Hitbox Changes
+RunService.RenderStepped:Connect(function()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            local head = char:FindFirstChild("Head")
+            local torso = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+            
+            if head and torso then
+                if hitboxEnabled then
+                    -- Head Hitbox
+                    head.Size = Vector3.new(headSize, headSize, headSize)
+                    head.Transparency = 0.5
+                    head.CanCollide = false
+                    
+                    -- Body Hitbox
+                    torso.Size = Vector3.new(bodySize, bodySize, bodySize)
+                    torso.Transparency = 0.5
+                    torso.CanCollide = false
+                else
+                    -- Reset to Default (ประมาณ)
+                    head.Size = Vector3.new(1.2, 1.2, 1.2)
+                    head.Transparency = 0
+                    
+                    torso.Size = Vector3.new(2, 2, 1)
+                    torso.Transparency = 0
+                end
+            end
+        end
+    end
+end)
+
+-- Function 3: Boost FPS (Optimize Graphic & Cap FPS)
+boostFPSBtn.MouseButton1Click:Connect(function()
+    boostFPSEnabled = not boostFPSEnabled
+    
+    if boostFPSEnabled then
+        boostFPSBtn.Text = "3. Boost FPS (ลดเอฟเฟกต์): [ON]"
+        boostFPSBtn.BackgroundColor3 = Color3.fromRGB(46, 139, 87)
+        
+        -- จำกัด FPS สูงสุดเพื่อลดภาระการทำงาน (เช่น 30 FPS)
+        setfpscap(30)
+        
+        -- ปรับแต่งสภาพแวดล้อมเพื่อลดภาระเครื่อง
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.CastShadow = false
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                obj.Transparency = 1
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") then
+                obj.Enabled = false
+            end
+        end
+    else
+        boostFPSBtn.Text = "3. Boost FPS (ลดเอฟเฟกต์): [OFF]"
+        boostFPSBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+        
+        -- คืนค่า FPS cap (60 FPS หรือมากกว่า)
+        setfpscap(60)
+        
+        Lighting.GlobalShadows = true
+    end
+end)
