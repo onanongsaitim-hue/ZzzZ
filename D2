@@ -1,0 +1,237 @@
+-- LocalScript: สคริปต์รวม UI สายรุ้ง + สกิลวาร์ป (พร้อมใช้งาน)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+---------------------------------------------------------
+-- PART 1: ระบบ UI (หน้าต่างหลัก + ปุ่มวงกลมลากได้ + ขอบสีรุ้ง)
+---------------------------------------------------------
+
+-- 1. สร้าง ScreenGui (ResetOnSpawn = false เพื่อให้ตายแล้ว UI ไม่หาย)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZzzZ_MainScreenGui"
+screenGui.ResetOnSpawn = false -- ไม่ลบ UI เมื่อตัวละครตาย
+screenGui.Parent = playerGui
+
+-- ระบบขอบสีรุ้ง (Rainbow Stroke)
+local rainbowStrokes = {}
+local function addRainbowStroke(guiObject, thickness)
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = thickness or 3
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = guiObject
+	table.insert(rainbowStrokes, stroke)
+	return stroke
+end
+
+local hue = 0
+RunService.RenderStepped:Connect(function(deltaTime)
+	hue = (hue + deltaTime * 0.4) % 1
+	local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
+	for _, stroke in ipairs(rainbowStrokes) do
+		if stroke and stroke.Parent then
+			stroke.Color = rainbowColor
+		end
+	end
+end)
+
+-- 2. สร้างหน้าต่างหลัก (Main Window)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 320, 0, 220)
+mainFrame.Position = UDim2.new(0.5, -160, 0.5, -110)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- พื้นหลังสีดำ
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 16)
+mainCorner.Parent = mainFrame
+
+addRainbowStroke(mainFrame, 3) -- ใส่ขอบสีรุ้ง
+
+-- ข้อความมงกุฎ + ZzzZ
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, 0, 0, 45)
+titleLabel.Position = UDim2.new(0, 0, 0, 15)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "👑  ZzzZ  👑"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 28
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.Parent = mainFrame
+
+-- ข้อความ ยินดีต้อนรับ
+local welcomeLabel = Instance.new("TextLabel")
+welcomeLabel.Name = "WelcomeLabel"
+welcomeLabel.Size = UDim2.new(1, -40, 0, 35)
+welcomeLabel.Position = UDim2.new(0, 20, 0, 60)
+welcomeLabel.BackgroundTransparency = 1
+welcomeLabel.Text = "ยินดีต้อนรับ"
+welcomeLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+welcomeLabel.TextSize = 22
+welcomeLabel.Font = Enum.Font.Garamond
+welcomeLabel.Parent = mainFrame
+
+-- คำแนะนำสกิล
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Name = "InfoLabel"
+infoLabel.Size = UDim2.new(1, -40, 0, 30)
+infoLabel.Position = UDim2.new(0, 20, 0, 95)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "กดปุ่ม [ E ] หรือปุ่ม UI เพื่อใช้สกิลวาร์ป"
+infoLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+infoLabel.TextSize = 14
+infoLabel.Font = Enum.Font.SourceSans
+infoLabel.Parent = mainFrame
+
+-- ปุ่มใช้งานสกิลวาร์ปจากหน้าต่าง UI
+local useSkillBtn = Instance.new("TextButton")
+useSkillBtn.Name = "UseSkillButton"
+useSkillBtn.Size = UDim2.new(0, 120, 0, 35)
+useSkillBtn.Position = UDim2.new(0.5, -125, 0, 150)
+useSkillBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+useSkillBtn.Text = "⚡ ใช้สกิลวาร์ป"
+useSkillBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+useSkillBtn.TextSize = 15
+useSkillBtn.Font = Enum.Font.SourceSansBold
+useSkillBtn.Parent = mainFrame
+
+local useSkillCorner = Instance.new("UICorner")
+useSkillCorner.CornerRadius = UDim.new(0, 8)
+useSkillCorner.Parent = useSkillBtn
+
+-- ปุ่มย่อหน้าต่างเป็นวงกลม
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 100, 0, 35)
+closeButton.Position = UDim2.new(0.5, 25, 0, 150)
+closeButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+closeButton.Text = "ย่อหน้าต่าง"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 15
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.Parent = mainFrame
+
+local closeBtnCorner = Instance.new("UICorner")
+closeBtnCorner.CornerRadius = UDim.new(0, 8)
+closeBtnCorner.Parent = closeButton
+
+-- 3. สร้างปุ่มวงกลม (Circle Button) แบบลากได้
+local circleBtn = Instance.new("TextButton")
+circleBtn.Name = "CircleButton"
+circleBtn.Size = UDim2.new(0, 65, 0, 65)
+circleBtn.Position = UDim2.new(0.05, 0, 0.5, -32)
+circleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- พื้นหลังสีดำ
+circleBtn.Text = "👑"
+circleBtn.TextSize = 30
+circleBtn.Visible = false -- ซ่อนอยู่ตอนแรก
+circleBtn.Parent = screenGui
+
+local circleCorner = Instance.new("UICorner")
+circleCorner.CornerRadius = UDim.new(1, 0) -- ทรงกลมเพอร์เฟกต์
+circleCorner.Parent = circleBtn
+
+addRainbowStroke(circleBtn, 3) -- ขอบสีรุ้งให้วงกลม
+
+-- ระบบ Drag & Drop (ลากปุ่มวงกลมย้ายตำแหน่งได้)
+local dragging = false
+local dragStartPos = nil
+local frameStartPos = nil
+local totalDragDistance = 0
+
+circleBtn.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStartPos = input.Position
+		frameStartPos = circleBtn.Position
+		totalDragDistance = 0
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStartPos
+		totalDragDistance = delta.Magnitude
+		circleBtn.Position = UDim2.new(
+			frameStartPos.X.Scale,
+			frameStartPos.X.Offset + delta.X,
+			frameStartPos.Y.Scale,
+			frameStartPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- การสลับการแสดงผล UI
+closeButton.MouseButton1Click:Connect(function()
+	mainFrame.Visible = false
+	circleBtn.Visible = true
+end)
+
+circleBtn.MouseButton1Click:Connect(function()
+	if totalDragDistance < 5 then -- ถ้าขยับไม่ถึง 5 พิกเซล ถือว่าเป็นการคลิก ไม่ใช่การลาก
+		circleBtn.Visible = false
+		mainFrame.Visible = true
+	end
+end)
+
+
+---------------------------------------------------------
+-- PART 2: ระบบสกิลวาร์ป (วางลูกกลมสีขาว -> วาร์ป)
+---------------------------------------------------------
+local SKILL_KEY = Enum.KeyCode.E -- ปุ่มคีย์บอร์ดที่ใช้กดสกิล (ปุ่ม E)
+local markPart = nil -- ตัวแปรเก็บลูกกลมสีขาว
+
+local function triggerWarpSkill()
+	local char = player.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	-- กดครั้งที่ 1: ถ้ายังไม่มีลูกกลม ให้สร้างลูกกลมสีขาวขึ้นมา
+	if markPart == nil then
+		markPart = Instance.new("Part")
+		markPart.Name = "TeleportMarkPart"
+		markPart.Shape = Enum.PartType.Ball
+		markPart.Size = Vector3.new(3.5, 3.5, 3.5)
+		markPart.Color = Color3.fromRGB(255, 255, 255) -- สีขาว
+		markPart.Material = Enum.Material.Neon -- เอฟเฟกต์เรืองแสง
+		markPart.Anchored = true
+		markPart.CanCollide = false
+		
+		-- วางลูกกลมไว้ด้านหน้าตัวละคร 5 หน่วย
+		markPart.CFrame = hrp.CFrame * CFrame.new(0, 0, -5)
+		markPart.Parent = workspace
+
+	-- กดครั้งที่ 2: ถ้ามีลูกกลมอยู่แล้ว ให้วาร์ปไปหาลูกกลม
+	else
+		-- วาร์ปตัวละครไปจุดที่มีลูกกลม (ยกสูงขึ้นเล็กน้อยเพื่อกันจมพื้น)
+		hrp.CFrame = markPart.CFrame + Vector3.new(0, 2, 0)
+		
+		-- ลบลูกกลมออกและคืนค่าตัวแปร
+		markPart:Destroy()
+		markPart = nil
+	end
+end
+
+-- กดปุ่มสกิลผ่านปุ่มบน UI
+useSkillBtn.MouseButton1Click:Connect(triggerWarpSkill)
+
+-- กดปุ่มสกิลผ่านคีย์บอร์ด (ปุ่ม E)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end -- ถ้าพิมพ์ช่องแชทอยู่จะไม่ทำงาน
+	if input.KeyCode == SKILL_KEY then
+		triggerWarpSkill()
+	end
+end)
