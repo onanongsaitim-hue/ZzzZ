@@ -1,0 +1,404 @@
+-- ========================================================
+-- ZzzZ Ultimate Hub - Enhanced Fast Attack & Custom Hitbox
+-- ========================================================
+
+-- ⚠ นำ Decal ID รูปของคุณมาใส่ตรงนี้ (ใส่เฉพาะตัวเลข)
+local MY_DECAL_ID = "123456789" 
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+local imageUrl = "rbxthumb://type=Asset&id=" .. MY_DECAL_ID .. "&w=420&h=420"
+
+-- Global States & Custom Hitbox Sizes
+local headHitboxEnabled = false
+local headHitboxSize = 10
+
+local bodyHitboxEnabled = false
+local bodyHitboxSize = 12
+
+local fastAttackEnabled = false
+local fpsBoostEnabled = false
+
+local isUIOpen = true
+local isTweening = false
+
+-- ScreenGui Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZzzZ_Dragon_Combat_GUI"
+screenGui.ResetOnSpawn = false
+
+if gethui then
+    screenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(screenGui)
+    screenGui.Parent = CoreGui
+else
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Floating Toggle Hub Button
+local toggleImageBtn = Instance.new("ImageButton")
+toggleImageBtn.Name = "ToggleImageBtn"
+toggleImageBtn.Size = UDim2.new(0, 65, 0, 65)
+toggleImageBtn.Position = UDim2.new(0, 20, 0.5, -32)
+toggleImageBtn.Image = imageUrl
+toggleImageBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+toggleImageBtn.Active = true
+toggleImageBtn.Draggable = true
+toggleImageBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0.5, 0)
+btnCorner.Parent = toggleImageBtn
+
+local btnStroke = Instance.new("UIStroke")
+btnStroke.Thickness = 3
+btnStroke.Parent = toggleImageBtn
+
+-- Main Frame UI
+local mainFrame = Instance.new("CanvasGroup")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 360, 0, 460)
+mainFrame.Position = UDim2.new(0.5, -180, 0.5, -230)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.GroupTransparency = 0
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Thickness = 2.5
+mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+mainStroke.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -40, 0, 35)
+titleLabel.Position = UDim2.new(0, 10, 0, 10)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "✨ ZzzZ ULTIMATE HUB ✨"
+titleLabel.TextSize = 20
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.Parent = mainFrame
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -33, 0, 8)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+-- Tabs Setup
+local tabContainer = Instance.new("Frame")
+tabContainer.Size = UDim2.new(0.92, 0, 0, 34)
+tabContainer.Position = UDim2.new(0.04, 0, 0.11, 0)
+tabContainer.BackgroundTransparency = 1
+tabContainer.Parent = mainFrame
+
+local combatTabBtn = Instance.new("TextButton")
+combatTabBtn.Size = UDim2.new(0.48, 0, 1, 0)
+combatTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+combatTabBtn.Text = "⚔️ ต่อสู้"
+combatTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+combatTabBtn.TextSize = 13
+combatTabBtn.Font = Enum.Font.SourceSansBold
+combatTabBtn.Parent = tabContainer
+
+local transformTabBtn = Instance.new("TextButton")
+transformTabBtn.Size = UDim2.new(0.48, 0, 1, 0)
+transformTabBtn.Position = UDim2.new(0.52, 0, 0, 0)
+transformTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+transformTabBtn.Text = "🐉 ดาบมังกร"
+transformTabBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+transformTabBtn.TextSize = 13
+transformTabBtn.Font = Enum.Font.SourceSansBold
+transformTabBtn.Parent = tabContainer
+
+local combatPage = Instance.new("ScrollingFrame")
+combatPage.Size = UDim2.new(1, 0, 0.8, 0)
+combatPage.Position = UDim2.new(0, 0, 0.2, 0)
+combatPage.BackgroundTransparency = 1
+combatPage.ScrollBarThickness = 4
+combatPage.CanvasSize = UDim2.new(0, 0, 0, 480)
+combatPage.Visible = true
+combatPage.Parent = mainFrame
+
+local transformPage = Instance.new("Frame")
+transformPage.Size = UDim2.new(1, 0, 0.8, 0)
+transformPage.Position = UDim2.new(0, 0, 0.2, 0)
+transformPage.BackgroundTransparency = 1
+transformPage.Visible = false
+transformPage.Parent = mainFrame
+
+combatTabBtn.MouseButton1Click:Connect(function()
+    combatPage.Visible = true transformPage.Visible = false
+    combatTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    transformTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+end)
+
+transformTabBtn.MouseButton1Click:Connect(function()
+    combatPage.Visible = false transformPage.Visible = true
+    transformTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    combatTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+end)
+
+local function toggleUI()
+    if isTweening then return end
+    isTweening = true
+    if isUIOpen then
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {GroupTransparency = 1}):Play()
+        task.wait(0.3)
+        mainFrame.Visible = false
+        isUIOpen = false
+    else
+        mainFrame.Visible = true
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {GroupTransparency = 0}):Play()
+        isUIOpen = true
+    end
+    isTweening = false
+end
+
+closeBtn.MouseButton1Click:Connect(toggleUI)
+toggleImageBtn.MouseButton1Click:Connect(toggleUI)
+
+RunService.RenderStepped:Connect(function()
+    local hue = (tick() % 5) / 5
+    local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
+    mainStroke.Color = rainbowColor
+    btnStroke.Color = rainbowColor
+    titleLabel.TextColor3 = rainbowColor
+end)
+
+local function createButton(parent, text, position)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 35)
+    btn.Position = position
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+    return btn
+end
+
+local function createSlider(parent, labelText, defaultVal, minVal, maxVal, position, callback)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(0.9, 0, 0, 45)
+    container.Position = position
+    container.BackgroundTransparency = 1
+    container.Parent = parent
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 18)
+    title.BackgroundTransparency = 1
+    title.Text = labelText .. ": " .. tostring(defaultVal)
+    title.TextColor3 = Color3.fromRGB(220, 220, 220)
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 13
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = container
+
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Size = UDim2.new(1, 0, 0, 10)
+    sliderBg.Position = UDim2.new(0, 0, 0, 24)
+    sliderBg.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    sliderBg.Parent = container
+
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(0, 5)
+    bgCorner.Parent = sliderBg
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((defaultVal - minVal)/(maxVal - minVal), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    fill.Parent = sliderBg
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 5)
+    fillCorner.Parent = fill
+
+    local dragging = false
+
+    local function update(input)
+        local pos = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
+        fill.Size = UDim2.new(pos, 0, 1, 0)
+        local val = math.floor(minVal + (maxVal - minVal) * pos)
+        title.Text = labelText .. ": " .. tostring(val)
+        callback(val)
+    end
+
+    sliderBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            update(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+end
+
+-- ==========================================================
+-- COMBAT TAB SETUP
+-- ==========================================================
+local headToggleBtn = createButton(combatPage, "🎯 Hitbox หัว: [ OFF ]", UDim2.new(0.05, 0, 0.02, 0))
+createSlider(combatPage, "📐 ขนาด Hitbox หัว", headHitboxSize, 1, 50, UDim2.new(0.05, 0, 0.11, 0), function(val)
+    headHitboxSize = val
+end)
+
+local bodyToggleBtn = createButton(combatPage, "🛡️ Hitbox ตัว: [ OFF ]", UDim2.new(0.05, 0, 0.22, 0))
+createSlider(combatPage, "📐 ขนาด Hitbox ตัว", bodyHitboxSize, 1, 50, UDim2.new(0.05, 0, 0.31, 0), function(val)
+    bodyHitboxSize = val
+end)
+
+local fastAttackBtn = createButton(combatPage, "⚡ ตีรวดเร็ว (คูลดาวน์ 0.5s): [ OFF ]", UDim2.new(0.05, 0, 0.42, 0))
+local fpsToggleBtn  = createButton(combatPage, "⚡ Boost FPS: [ OFF ]", UDim2.new(0.05, 0, 0.52, 0))
+
+headToggleBtn.MouseButton1Click:Connect(function()
+    headHitboxEnabled = not headHitboxEnabled
+    headToggleBtn.Text = headHitboxEnabled and "🎯 Hitbox หัว: [ ON ]" or "🎯 Hitbox หัว: [ OFF ]"
+    headToggleBtn.BackgroundColor3 = headHitboxEnabled and Color3.fromRGB(40, 140, 75) or Color3.fromRGB(35, 35, 45)
+end)
+
+bodyToggleBtn.MouseButton1Click:Connect(function()
+    bodyHitboxEnabled = not bodyHitboxEnabled
+    bodyToggleBtn.Text = bodyHitboxEnabled and "🛡️ Hitbox ตัว: [ ON ]" or "🛡️ Hitbox ตัว: [ OFF ]"
+    bodyToggleBtn.BackgroundColor3 = bodyHitboxEnabled and Color3.fromRGB(40, 140, 75) or Color3.fromRGB(35, 35, 45)
+end)
+
+fastAttackBtn.MouseButton1Click:Connect(function()
+    fastAttackEnabled = not fastAttackEnabled
+    fastAttackBtn.Text = fastAttackEnabled and "⚡ ตีรวดเร็ว (คูลดาวน์ 0.5s): [ ON ]" or "⚡ ตีรวดเร็ว (คูลดาวน์ 0.5s): [ OFF ]"
+    fastAttackBtn.BackgroundColor3 = fastAttackEnabled and Color3.fromRGB(220, 120, 0) or Color3.fromRGB(35, 35, 45)
+end)
+
+fpsToggleBtn.MouseButton1Click:Connect(function()
+    fpsBoostEnabled = not fpsBoostEnabled
+    fpsToggleBtn.Text = fpsBoostEnabled and "⚡ Boost FPS: [ ON ]" or "⚡ Boost FPS: [ OFF ]"
+    fpsToggleBtn.BackgroundColor3 = fpsBoostEnabled and Color3.fromRGB(180, 70, 50) or Color3.fromRGB(35, 35, 45)
+    Lighting.GlobalShadows = not fpsBoostEnabled
+end)
+
+-- --------------------------------------------------------
+-- ระบบเจาะแก้ไขคูลดาวน์ และเร่งสปีดการตี (Advanced Fast Attack Engine)
+-- --------------------------------------------------------
+local lastAttackTime = 0
+
+RunService.Stepped:Connect(function()
+    if not fastAttackEnabled then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local tool = char:FindFirstChildOfClass("Tool")
+
+    -- 1. Accelerate Animation Speed (เร่งอนิเมชันท่าฟันให้เร็วขึ้น 4 เท่า)
+    if humanoid then
+        local animator = humanoid:FindFirstChildOfClass("Animator")
+        if animator then
+            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                if track.Name:lower():find("attack") or track.Name:lower():find("slash") or track.Name:lower():find("swing") or track.Name:lower():find("punch") then
+                    track:AdjustSpeed(4) -- เร่งอนิเมชันเพื่อข้ามช่วงรอด้านหลัง
+                end
+            end
+        end
+    end
+
+    -- 2. Modify Tool Attributes / Variables (พยายามแก้ไขค่า Cooldown ภายใน Tool)
+    if tool then
+        -- ปรับแก้ Attributes ที่อยู่ใน Tool
+        for name, value in pairs(tool:GetAttributes()) do
+            if type(value) == "number" and (name:lower():find("cooldown") or name:lower():find("delay") or name:lower():find("wait")) then
+                tool:SetAttribute(name, 0.5)
+            end
+        end
+
+        -- ปรับแก้ Value Objects
+        for _, child in ipairs(tool:GetChildren()) do
+            if child:IsA("NumberValue") or child:IsA("IntValue") then
+                local cName = child.Name:lower()
+                if cName:find("cooldown") or cName:find("delay") or cName:find("wait") then
+                    child.Value = 0.5
+                end
+            end
+        end
+
+        -- 3. Trigger Attack every 0.5 seconds
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            if tick() - lastAttackTime >= 0.5 then
+                lastAttackTime = tick()
+                tool:Activate()
+            end
+        end
+    end
+end)
+
+-- Dynamic Custom Hitbox Loop
+RunService.RenderStepped:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            
+            -- หัว
+            local head = char:FindFirstChild("Head")
+            if head then
+                if headHitboxEnabled then
+                    head.Size = Vector3.new(headHitboxSize, headHitboxSize, headHitboxSize)
+                    head.Transparency = 0.6
+                    head.Color = Color3.fromRGB(0, 170, 255)
+                    head.Material = Enum.Material.Neon
+                    head.CanCollide = false
+                else
+                    head.Size = Vector3.new(2, 1, 1)
+                    head.Transparency = 0
+                    head.Material = Enum.Material.Plastic
+                end
+            end
+
+            -- ตัว (HumanoidRootPart)
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                if bodyHitboxEnabled then
+                    hrp.Size = Vector3.new(bodyHitboxSize, bodyHitboxSize, bodyHitboxSize)
+                    hrp.Transparency = 0.7
+                    hrp.Color = Color3.fromRGB(0, 255, 120)
+                    hrp.Material = Enum.Material.Neon
+                    hrp.CanCollide = false
+                else
+                    hrp.Size = Vector3.new(2, 2, 1)
+                    hrp.Transparency = 1
+                end
+            end
+        end
+    end
+end)
