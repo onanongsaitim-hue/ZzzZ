@@ -1,0 +1,596 @@
+-- ========================================================
+-- ZzzZ Utility Hub - Knockback to Space Skill Upgrade
+-- ========================================================
+
+-- ⚠️ นำ Decal ID รูปของคุณมาใส่ตรงนี้ (ใส่เฉพาะตัวเลข)
+local MY_DECAL_ID = "123456789" 
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+local imageUrl = "rbxthumb://type=Asset&id=" .. MY_DECAL_ID .. "&w=420&h=420"
+local CROWN_IMAGE_ID = "rbxassetid://10709818626" 
+
+-- Global States
+local headHitboxEnabled = false
+local bodyHitboxEnabled = false
+local fpsBoostEnabled = false
+
+local headSize = 5
+local bodySize = 8
+
+local isUIOpen = true
+local isTweening = false
+
+-- Transform States
+local auraEnabled = false
+local giantEnabled = false
+local swordRingEnabled = false
+
+local swordAngle = 0
+local isPerformingSpecial = false
+local swordRingRadius = 4.5
+local swordSpinSpeed = 120
+
+-- ScreenGui Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZzzZ_Rainbow_GUI"
+screenGui.ResetOnSpawn = false
+
+if gethui then
+    screenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(screenGui)
+    screenGui.Parent = CoreGui
+else
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Black Flash Overlay
+local blackFlashFrame = Instance.new("Frame")
+blackFlashFrame.Name = "BlackFlashOverlay"
+blackFlashFrame.Size = UDim2.new(1, 0, 1, 0)
+blackFlashFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+blackFlashFrame.BackgroundTransparency = 1
+blackFlashFrame.ZIndex = 100
+blackFlashFrame.Parent = screenGui
+
+-- Floating Toggle Hub Button
+local toggleImageBtn = Instance.new("ImageButton")
+toggleImageBtn.Name = "ToggleImageBtn"
+toggleImageBtn.Size = UDim2.new(0, 65, 0, 65)
+toggleImageBtn.Position = UDim2.new(0, 20, 0.5, -32)
+toggleImageBtn.Image = imageUrl
+toggleImageBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+toggleImageBtn.Active = true
+toggleImageBtn.Draggable = true
+toggleImageBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0.5, 0)
+btnCorner.Parent = toggleImageBtn
+
+local btnStroke = Instance.new("UIStroke")
+btnStroke.Thickness = 3
+btnStroke.Parent = toggleImageBtn
+
+-- --------------------------------------------------------
+-- ON-SCREEN SKILL BUTTONS (ปุ่มสกิลบนหน้าจอ)
+-- --------------------------------------------------------
+local skillContainer = Instance.new("Frame")
+skillContainer.Name = "SkillButtonsContainer"
+skillContainer.Size = UDim2.new(0, 220, 0, 90)
+skillContainer.Position = UDim2.new(1, -240, 1, -110)
+skillContainer.BackgroundTransparency = 1
+skillContainer.Visible = false
+skillContainer.Parent = screenGui
+
+local skill1Btn = Instance.new("TextButton")
+skill1Btn.Name = "Skill1Button"
+skill1Btn.Size = UDim2.new(0, 100, 0, 80)
+skill1Btn.Position = UDim2.new(0, 0, 0, 0)
+skill1Btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+skill1Btn.Text = "🗡️\nSKILL 1\n[ ฟันกระเด็น ]"
+skill1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+skill1Btn.TextSize = 13
+skill1Btn.Font = Enum.Font.SourceSansBold
+skill1Btn.Parent = skillContainer
+
+local s1Corner = Instance.new("UICorner")
+s1Corner.CornerRadius = UDim.new(0, 12)
+s1Corner.Parent = skill1Btn
+
+local s1Stroke = Instance.new("UIStroke")
+s1Stroke.Thickness = 2
+s1Stroke.Color = Color3.fromRGB(0, 200, 255)
+s1Stroke.Parent = skill1Btn
+
+local skill2Btn = Instance.new("TextButton")
+skill2Btn.Name = "Skill2Button"
+skill2Btn.Size = UDim2.new(0, 100, 0, 80)
+skill2Btn.Position = UDim2.new(0, 110, 0, 0)
+skill2Btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+skill2Btn.Text = "🌀\nSKILL 2\n[ กงจักรส่งออกนอกโลก ]"
+skill2Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+skill2Btn.TextSize = 11
+skill2Btn.Font = Enum.Font.SourceSansBold
+skill2Btn.Parent = skillContainer
+
+local s2Corner = Instance.new("UICorner")
+s2Corner.CornerRadius = UDim.new(0, 12)
+s2Corner.Parent = skill2Btn
+
+local s2Stroke = Instance.new("UIStroke")
+s2Stroke.Thickness = 2
+s2Stroke.Color = Color3.fromRGB(255, 100, 0)
+s2Stroke.Parent = skill2Btn
+
+-- Main Frame UI
+local mainFrame = Instance.new("CanvasGroup")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 340, 0, 420)
+mainFrame.Position = UDim2.new(0.5, -170, 0.5, -210)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.GroupTransparency = 0
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Thickness = 2.5
+mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+mainStroke.Parent = mainFrame
+
+-- Title
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -40, 0, 35)
+titleLabel.Position = UDim2.new(0, 10, 0, 18)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "✨ ZzzZ HUB ✨"
+titleLabel.TextSize = 22
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.Parent = mainFrame
+
+-- Close Button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseButton"
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -33, 0, 8)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 14
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+-- Tabs Setup
+local tabContainer = Instance.new("Frame")
+tabContainer.Size = UDim2.new(0.9, 0, 0, 35)
+tabContainer.Position = UDim2.new(0.05, 0, 0.14, 0)
+tabContainer.BackgroundTransparency = 1
+tabContainer.Parent = mainFrame
+
+local combatTabBtn = Instance.new("TextButton")
+combatTabBtn.Size = UDim2.new(0.48, 0, 1, 0)
+combatTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+combatTabBtn.Text = "⚔️ ต่อสู้"
+combatTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+combatTabBtn.Font = Enum.Font.SourceSansBold
+combatTabBtn.Parent = tabContainer
+
+local combatCorner = Instance.new("UICorner")
+combatCorner.CornerRadius = UDim.new(0, 8)
+combatCorner.Parent = combatTabBtn
+
+local transformTabBtn = Instance.new("TextButton")
+transformTabBtn.Size = UDim2.new(0.48, 0, 1, 0)
+transformTabBtn.Position = UDim2.new(0.52, 0, 0, 0)
+transformTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+transformTabBtn.Text = "🌀 แปลงร่าง"
+transformTabBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+transformTabBtn.Font = Enum.Font.SourceSansBold
+transformTabBtn.Parent = tabContainer
+
+local transformCorner = Instance.new("UICorner")
+transformCorner.CornerRadius = UDim.new(0, 8)
+transformCorner.Parent = transformTabBtn
+
+local combatPage = Instance.new("Frame")
+combatPage.Size = UDim2.new(1, 0, 0.75, 0)
+combatPage.Position = UDim2.new(0, 0, 0.25, 0)
+combatPage.BackgroundTransparency = 1
+combatPage.Visible = true
+combatPage.Parent = mainFrame
+
+local transformPage = Instance.new("Frame")
+transformPage.Size = UDim2.new(1, 0, 0.75, 0)
+transformPage.Position = UDim2.new(0, 0, 0.25, 0)
+transformPage.BackgroundTransparency = 1
+transformPage.Visible = false
+transformPage.Parent = mainFrame
+
+combatTabBtn.MouseButton1Click:Connect(function()
+    combatPage.Visible = true
+    transformPage.Visible = false
+    combatTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    transformTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+end)
+
+transformTabBtn.MouseButton1Click:Connect(function()
+    combatPage.Visible = false
+    transformPage.Visible = true
+    transformTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    combatTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+end)
+
+-- Toggle Main UI
+local function toggleUI()
+    if isTweening then return end
+    isTweening = true
+    if isUIOpen then
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {GroupTransparency = 1}):Play()
+        task.wait(0.3)
+        mainFrame.Visible = false
+        isUIOpen = false
+    else
+        mainFrame.Visible = true
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {GroupTransparency = 0}):Play()
+        isUIOpen = true
+    end
+    isTweening = false
+end
+
+closeBtn.MouseButton1Click:Connect(toggleUI)
+toggleImageBtn.MouseButton1Click:Connect(toggleUI)
+
+-- Rainbow Loop
+RunService.RenderStepped:Connect(function()
+    local hue = (tick() % 5) / 5
+    local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
+    mainStroke.Color = rainbowColor
+    btnStroke.Color = rainbowColor
+    titleLabel.TextColor3 = rainbowColor
+end)
+
+-- Helpers
+local function createButton(parent, text, position)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 36)
+    btn.Position = position
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+    return btn
+end
+
+-- --------------------------------------------------------
+-- 🚀 ฟังก์ชันส่งผู้เล่นอื่นกระเด็นออกนอกโลก (Space Knockback Function)
+-- --------------------------------------------------------
+local function sendToSpace(targetChar)
+    if not targetChar then return end
+    local targetHrP = targetChar:FindFirstChild("HumanoidRootPart") or targetChar:FindFirstChild("Torso")
+    local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+
+    if targetHrP and targetHum then
+        -- ปลดล็อคความยึดเกาะเพื่อให้กระเด็นได้อย่างอิสระ
+        targetHum.PlatformStand = true
+        
+        -- สร้างแรงส่งมหาศาลส่งขึ้นฟ้าออกนอกโลก
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        bodyVelocity.Velocity = Vector3.new(math.random(-500, 500), 500000, math.random(-500, 500)) -- แรงพุ่งขึ้นฟ้ามหาศาล
+        bodyVelocity.Parent = targetHrP
+
+        game:GetService("Debris"):AddItem(bodyVelocity, 1.5)
+    end
+end
+
+-- ========================================================
+-- TAB 1: COMBAT CONTROLS
+-- ========================================================
+local headToggleBtn = createButton(combatPage, "🎯 Hitbox หัว: [ OFF ]", UDim2.new(0.05, 0, 0.05, 0))
+local bodyToggleBtn = createButton(combatPage, "🛡️ Hitbox ตัว: [ OFF ]", UDim2.new(0.05, 0, 0.22, 0))
+local fpsToggleBtn  = createButton(combatPage, "⚡ Boost FPS: [ OFF ]", UDim2.new(0.05, 0, 0.39, 0))
+
+headToggleBtn.MouseButton1Click:Connect(function()
+    headHitboxEnabled = not headHitboxEnabled
+    headToggleBtn.Text = headHitboxEnabled and "🎯 Hitbox หัว: [ ON ]" or "🎯 Hitbox หัว: [ OFF ]"
+    headToggleBtn.BackgroundColor3 = headHitboxEnabled and Color3.fromRGB(40, 140, 75) or Color3.fromRGB(35, 35, 45)
+end)
+
+bodyToggleBtn.MouseButton1Click:Connect(function()
+    bodyHitboxEnabled = not bodyHitboxEnabled
+    bodyToggleBtn.Text = bodyHitboxEnabled and "🛡️ Hitbox ตัว: [ ON ]" or "🛡️ Hitbox ตัว: [ OFF ]"
+    bodyToggleBtn.BackgroundColor3 = bodyHitboxEnabled and Color3.fromRGB(40, 140, 75) or Color3.fromRGB(35, 35, 45)
+end)
+
+fpsToggleBtn.MouseButton1Click:Connect(function()
+    fpsBoostEnabled = not fpsBoostEnabled
+    fpsToggleBtn.Text = fpsBoostEnabled and "⚡ Boost FPS: [ ON ]" or "⚡ Boost FPS: [ OFF ]"
+    fpsToggleBtn.BackgroundColor3 = fpsBoostEnabled and Color3.fromRGB(180, 70, 50) or Color3.fromRGB(35, 35, 45)
+    Lighting.GlobalShadows = not fpsBoostEnabled
+end)
+
+-- ========================================================
+-- TAB 2: TRANSFORM & SWORD CREATION
+-- ========================================================
+local auraToggleBtn   = createButton(transformPage, "🔥 ออร่าพลังซูเปอร์ไซย่า: [ OFF ]", UDim2.new(0.05, 0, 0.05, 0))
+local giantToggleBtn  = createButton(transformPage, "🗿 แปลงร่างเป็นร่างยักษ์: [ OFF ]", UDim2.new(0.05, 0, 0.22, 0))
+local ringToggleBtn   = createButton(transformPage, "✨ แปลงร่างร่างหนาม + วงแหวนดาบ: [ OFF ]", UDim2.new(0.05, 0, 0.39, 0))
+
+local function createSingleAwesomeSword(index)
+    local sword = Instance.new("Model")
+    sword.Name = "AwesomeSword_" .. tostring(index)
+
+    local blade = Instance.new("Part")
+    blade.Name = "Blade"
+    blade.Size = Vector3.new(0.2, 4.2, 0.5)
+    blade.Material = Enum.Material.Neon
+    blade.Color = Color3.fromHSV((index/10), 0.9, 1)
+    blade.CanCollide = false
+    blade.Parent = sword
+
+    local handle = Instance.new("Part")
+    handle.Name = "Handle"
+    handle.Size = Vector3.new(0.25, 1.2, 0.25)
+    handle.Material = Enum.Material.SmoothPlastic
+    handle.Color = Color3.fromRGB(30, 30, 30)
+    handle.CanCollide = false
+    handle.Parent = sword
+
+    local hWeld = Instance.new("Weld")
+    hWeld.Part0 = blade
+    hWeld.Part1 = handle
+    hWeld.C0 = CFrame.new(0, -2.4, 0)
+    hWeld.Parent = blade
+
+    sword.PrimaryPart = blade
+    return sword
+end
+
+local function spawn10Swords(char)
+    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+    if not torso then return end
+
+    local existingFolder = char:FindFirstChild("ZzzZ_10Swords")
+    if swordRingEnabled then
+        if not existingFolder then
+            local folder = Instance.new("Folder")
+            folder.Name = "ZzzZ_10Swords"
+            folder.Parent = char
+
+            for i = 1, 10 do
+                local sw = createSingleAwesomeSword(i)
+                sw.Parent = folder
+
+                local motor = Instance.new("Motor6D")
+                motor.Name = "SwordMotor_" .. tostring(i)
+                motor.Part0 = torso
+                motor.Part1 = sw.PrimaryPart
+                motor.Parent = torso
+            end
+        end
+        skillContainer.Visible = true
+    else
+        if existingFolder then existingFolder:Destroy() end
+        skillContainer.Visible = false
+    end
+end
+
+-- Black Flash Animation
+local function triggerBlackFlashTransform()
+    blackFlashFrame.BackgroundTransparency = 0
+    if LocalPlayer.Character then spawn10Swords(LocalPlayer.Character) end
+    task.wait(0.15)
+    TweenService:Create(blackFlashFrame, TweenInfo.new(1.0), {BackgroundTransparency = 1}):Play()
+end
+
+ringToggleBtn.MouseButton1Click:Connect(function()
+    swordRingEnabled = not swordRingEnabled
+    ringToggleBtn.Text = swordRingEnabled and "✨ แปลงร่างร่างหนาม + วงแหวนดาบ: [ ON ]" or "✨ แปลงร่างร่างหนาม + วงแหวนดาบ: [ OFF ]"
+    ringToggleBtn.BackgroundColor3 = swordRingEnabled and Color3.fromRGB(40, 140, 75) or Color3.fromRGB(35, 35, 45)
+    
+    if swordRingEnabled then
+        triggerBlackFlashTransform()
+    else
+        if LocalPlayer.Character then spawn10Swords(LocalPlayer.Character) end
+    end
+end)
+
+-- ========================================================
+-- ⚔️ SKILL 1 ACTION (ถอดดาบมาฟัน + ส่งกระเด็น)
+-- ========================================================
+skill1Btn.MouseButton1Click:Connect(function()
+    if not swordRingEnabled or isPerformingSpecial then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    local rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
+    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+    local folder = char:FindFirstChild("ZzzZ_10Swords")
+    if not folder or not rightArm or not torso then return end
+
+    isPerformingSpecial = true
+
+    local sword1 = folder:FindFirstChild("AwesomeSword_1")
+    local motor1 = torso:FindFirstChild("SwordMotor_1")
+    if sword1 and motor1 then
+        motor1.Part0 = rightArm
+        motor1.C0 = CFrame.new(0, -1, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+
+        local rShoulder = rightArm:FindFirstChild("RightShoulder") or torso:FindFirstChild("Right Shoulder")
+        local origC0 = rShoulder and rShoulder.C0 or CFrame.new()
+
+        if rShoulder then
+            TweenService:Create(rShoulder, TweenInfo.new(0.2), {C0 = origC0 * CFrame.Angles(math.rad(120), 0, math.rad(30))}):Play()
+            task.wait(0.25)
+
+            TweenService:Create(rShoulder, TweenInfo.new(0.12), {C0 = origC0 * CFrame.Angles(math.rad(-50), math.rad(-60), math.rad(-20))}):Play()
+            
+            -- สร้างคลื่นพลังดาบพุ่งไปข้างหน้า
+            local wave = Instance.new("Part")
+            wave.Size = Vector3.new(6, 0.2, 6)
+            wave.Material = Enum.Material.Neon
+            wave.Color = Color3.fromRGB(0, 230, 255)
+            wave.CFrame = torso.CFrame * CFrame.new(0, 0, -4) * CFrame.Angles(0, 0, math.rad(45))
+            wave.CanCollide = false
+            wave.Parent = workspace
+            
+            -- ตรวจจับผู้เล่นที่โดนคลื่นดาบ
+            wave.Touched:Connect(function(hit)
+                local hitModel = hit.Parent
+                if hitModel and hitModel:FindFirstChildOfClass("Humanoid") and hitModel ~= char then
+                    sendToSpace(hitModel)
+                end
+            end)
+
+            TweenService:Create(wave, TweenInfo.new(0.35), {Size = Vector3.new(15, 0.1, 15), Transparency = 1, CFrame = wave.CFrame * CFrame.new(0, 0, -35)}):Play()
+            game:GetService("Debris"):AddItem(wave, 0.4)
+
+            task.wait(0.3)
+            TweenService:Create(rShoulder, TweenInfo.new(0.3), {C0 = origC0}):Play()
+        end
+
+        motor1.Part0 = torso
+    end
+
+    isPerformingSpecial = false
+end)
+
+-- ========================================================
+-- 🌀 SKILL 2 ACTION (ชูมือขึ้นฟ้า -> กงจักรหมุนพุ่งส่งออกนอกโลก -> หมุนกลับหลัง)
+-- ========================================================
+skill2Btn.MouseButton1Click:Connect(function()
+    if not swordRingEnabled or isPerformingSpecial then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+    local rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
+    local folder = char:FindFirstChild("ZzzZ_10Swords")
+    if not folder or not torso or not rightArm then return end
+
+    isPerformingSpecial = true
+
+    local rShoulder = rightArm:FindFirstChild("RightShoulder") or torso:FindFirstChild("Right Shoulder")
+    local origC0 = rShoulder and rShoulder.C0 or CFrame.new()
+
+    -- 1. ชูมือขึ้นฟ้า + วงจักรขึ้นเหนือหัว
+    if rShoulder then
+        TweenService:Create(rShoulder, TweenInfo.new(0.3), {C0 = origC0 * CFrame.Angles(math.rad(165), 0, 0)}):Play()
+    end
+
+    for i = 1, 10 do
+        local motor = torso:FindFirstChild("SwordMotor_" .. tostring(i))
+        if motor then
+            TweenService:Create(motor, TweenInfo.new(0.3), {
+                C0 = CFrame.new(0, 5, 0) * CFrame.Angles(math.rad(90), 0, math.rad(i * 36))
+            }):Play()
+        end
+    end
+    task.wait(0.4)
+
+    -- 2. ชี้ไปข้างหน้า + กงจักรพุ่ง
+    if rShoulder then
+        TweenService:Create(rShoulder, TweenInfo.new(0.15), {C0 = origC0 * CFrame.Angles(math.rad(90), 0, 0)}):Play()
+    end
+
+    swordSpinSpeed = 2000
+    local targetDist = 55
+
+    -- ตรวจจับผู้เล่นในเส้นทางพุ่งของกงจักร
+    local regionCenter = torso.CFrame * CFrame.new(0, 0, -targetDist/2)
+    for _, otherPlayer in pairs(Players:GetPlayers()) do
+        if otherPlayer ~= LocalPlayer and otherPlayer.Character then
+            local oChar = otherPlayer.Character
+            local oHrP = oChar:FindFirstChild("HumanoidRootPart")
+            if oHrP and (oHrP.Position - regionCenter.Position).Magnitude <= 25 then
+                sendToSpace(oChar)
+            end
+        end
+    end
+
+    for i = 1, 10 do
+        local motor = torso:FindFirstChild("SwordMotor_" .. tostring(i))
+        if motor then
+            TweenService:Create(motor, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                C0 = CFrame.new(0, 1, -targetDist) * CFrame.Angles(math.rad(90), 0, math.rad(i * 36))
+            }):Play()
+        end
+    end
+    task.wait(0.6)
+
+    -- 3. หมุนโค้งกลับหลัง
+    for i = 1, 10 do
+        local motor = torso:FindFirstChild("SwordMotor_" .. tostring(i))
+        if motor then
+            TweenService:Create(motor, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                C0 = CFrame.new(0, 0, 1.5) * CFrame.Angles(0, 0, math.rad(i * 36))
+            }):Play()
+        end
+    end
+    task.wait(0.5)
+
+    swordSpinSpeed = 120
+    if rShoulder then
+        TweenService:Create(rShoulder, TweenInfo.new(0.3), {C0 = origC0}):Play()
+    end
+
+    isPerformingSpecial = false
+end)
+
+-- Main Render Loop (Idle & Walk Animation)
+RunService.RenderStepped:Connect(function(deltaTime)
+    local char = LocalPlayer.Character
+    if char and swordRingEnabled and not isPerformingSpecial then
+        local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+        local rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
+        local leftArm = char:FindFirstChild("LeftHand") or char:FindFirstChild("Left Arm")
+
+        -- ท่าเอามือกุมหลัง
+        if torso and rightArm and leftArm then
+            local rShoulder = rightArm:FindFirstChild("RightShoulder") or torso:FindFirstChild("Right Shoulder")
+            local lShoulder = leftArm:FindFirstChild("LeftShoulder") or torso:FindFirstChild("Left Shoulder")
+
+            if rShoulder and lShoulder then
+                rShoulder.C0 = rShoulder.C0:Lerp(CFrame.new(1, 0, 0.5) * CFrame.Angles(math.rad(-45), math.rad(-20), math.rad(-15)), 0.2)
+                lShoulder.C0 = lShoulder.C0:Lerp(CFrame.new(-1, 0, 0.5) * CFrame.Angles(math.rad(-45), math.rad(20), math.rad(15)), 0.2)
+            end
+        end
+
+        -- วงแหวนดาบหมุน
+        if torso then
+            swordAngle = (swordAngle + (swordSpinSpeed * deltaTime)) % 360
+
+            for i = 1, 10 do
+                local motor = torso:FindFirstChild("SwordMotor_" .. tostring(i))
+                if motor then
+                    local offsetRad = math.rad(swordAngle + (i * 36))
+                    local x = math.cos(offsetRad) * swordRingRadius
+                    local y = math.sin(offsetRad) * swordRingRadius
+
+                    motor.C0 = CFrame.new(x, y, 1.2) * CFrame.Angles(0, 0, offsetRad - math.rad(90))
+                end
+            end
+        end
+    end
+end)
