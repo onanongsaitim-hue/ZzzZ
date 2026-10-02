@@ -1,0 +1,304 @@
+-- ========================================================
+-- ZzzZ Utility Hub - Auto Image Converter & Fade Edition
+-- ========================================================
+
+-- ⚠️ นำ Decal ID รูปน้องหมาของคุณมาใส่ตรงนี้ (ใส่เฉพาะตัวเลข)
+local MY_DECAL_ID = "123456789" 
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Convert Decal ID -> Asset URL
+local imageUrl = "rbxthumb://type=Asset&id=" .. MY_DECAL_ID .. "&w=420&h=420"
+local CROWN_IMAGE_ID = "rbxassetid://10709818626" 
+
+-- States
+local headHitboxEnabled = false
+local bodyHitboxEnabled = false
+local fpsBoostEnabled = false
+
+local headSize = 5
+local bodySize = 8
+
+local isUIOpen = true
+local isTweening = false
+
+-- ScreenGui Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZzzZ_Rainbow_GUI"
+screenGui.ResetOnSpawn = false -- ตาย UI ไม่หาย
+
+if gethui then
+    screenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(screenGui)
+    screenGui.Parent = CoreGui
+else
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Floating Dog Button (ImageButton)
+local toggleImageBtn = Instance.new("ImageButton")
+toggleImageBtn.Name = "ToggleImageBtn"
+toggleImageBtn.Size = UDim2.new(0, 65, 0, 65)
+toggleImageBtn.Position = UDim2.new(0, 20, 0.5, -32)
+toggleImageBtn.Image = imageUrl
+toggleImageBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+toggleImageBtn.Active = true
+toggleImageBtn.Draggable = true
+toggleImageBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0.5, 0)
+btnCorner.Parent = toggleImageBtn
+
+local btnStroke = Instance.new("UIStroke")
+btnStroke.Thickness = 3
+btnStroke.Parent = toggleImageBtn
+
+-- Main Frame
+local mainFrame = Instance.new("CanvasGroup")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 320, 0, 440)
+mainFrame.Position = UDim2.new(0.5, -160, 0.5, -220)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.GroupTransparency = 0
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Thickness = 2.5
+mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+mainStroke.Parent = mainFrame
+
+-- Crown Image
+local crownImage = Instance.new("ImageLabel")
+crownImage.Name = "CrownImage"
+crownImage.Size = UDim2.new(0, 45, 0, 45)
+crownImage.Position = UDim2.new(0.5, -22.5, 0, -20)
+crownImage.BackgroundTransparency = 1
+crownImage.Image = CROWN_IMAGE_ID
+crownImage.ImageColor3 = Color3.fromRGB(255, 215, 0)
+crownImage.ZIndex = 5
+crownImage.Parent = mainFrame
+
+-- Title Header
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -40, 0, 45)
+titleLabel.Position = UDim2.new(0, 10, 0, 20)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "✨ ZzzZ HUB ✨"
+titleLabel.TextSize = 22
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.Parent = mainFrame
+
+-- Close Button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseButton"
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 8)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 14
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+-- Smooth Fade In / Fade Out Function
+local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function toggleUI()
+    if isTweening then return end
+    isTweening = true
+    
+    if isUIOpen then
+        local tween = TweenService:Create(mainFrame, tweenInfo, {GroupTransparency = 1})
+        tween:Play()
+        tween.Completed:Connect(function()
+            mainFrame.Visible = false
+            isUIOpen = false
+            isTweening = false
+        end)
+    else
+        mainFrame.Visible = true
+        local tween = TweenService:Create(mainFrame, tweenInfo, {GroupTransparency = 0})
+        tween:Play()
+        tween.Completed:Connect(function()
+            isUIOpen = true
+            isTweening = false
+        end)
+    end
+end
+
+closeBtn.MouseButton1Click:Connect(toggleUI)
+toggleImageBtn.MouseButton1Click:Connect(toggleUI)
+
+-- Rainbow Loop
+RunService.RenderStepped:Connect(function()
+    local hue = (tick() % 5) / 5
+    local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
+    mainStroke.Color = rainbowColor
+    btnStroke.Color = rainbowColor
+    titleLabel.TextColor3 = rainbowColor
+end)
+
+-- UI Helpers
+local function createButton(text, position)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 38)
+    btn.Position = position
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.SourceSansBold
+    btn.Parent = mainFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1
+    stroke.Color = Color3.fromRGB(60, 60, 75)
+    stroke.Parent = btn
+
+    return btn
+end
+
+local function createTextBox(placeholder, position)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0.9, 0, 0, 32)
+    box.Position = position
+    box.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
+    box.PlaceholderText = placeholder
+    box.Text = ""
+    box.TextColor3 = Color3.fromRGB(255, 255, 255)
+    box.PlaceholderColor3 = Color3.fromRGB(120, 120, 140)
+    box.TextSize = 13
+    box.Font = Enum.Font.SourceSans
+    box.Parent = mainFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = box
+
+    return box
+end
+
+-- Controls
+local headToggleBtn = createButton("🎯 Hitbox หัว: [ OFF ]", UDim2.new(0.05, 0, 0.17, 0))
+local headInputBox  = createTextBox("ขนาด Hitbox หัว (ปกติ: 1.2)", UDim2.new(0.05, 0, 0.27, 0))
+
+local bodyToggleBtn = createButton("🛡️ Hitbox ตัว: [ OFF ]", UDim2.new(0.05, 0, 0.38, 0))
+local bodyInputBox  = createTextBox("ขนาด Hitbox ตัว (ปกติ: 2.0)", UDim2.new(0.05, 0, 0.48, 0))
+
+local fpsToggleBtn  = createButton("⚡ Boost FPS (ลดเอฟเฟกต์): [ OFF ]", UDim2.new(0.05, 0, 0.63, 0))
+
+-- Handlers
+headInputBox.FocusLost:Connect(function()
+    local val = tonumber(headInputBox.Text)
+    if val then headSize = val end
+end)
+
+bodyInputBox.FocusLost:Connect(function()
+    local val = tonumber(bodyInputBox.Text)
+    if val then bodySize = val end
+end)
+
+headToggleBtn.MouseButton1Click:Connect(function()
+    headHitboxEnabled = not headHitboxEnabled
+    if headHitboxEnabled then
+        headToggleBtn.Text = "🎯 Hitbox หัว: [ ON ]"
+        headToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 140, 75)
+    else
+        headToggleBtn.Text = "🎯 Hitbox หัว: [ OFF ]"
+        headToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    end
+end)
+
+bodyToggleBtn.MouseButton1Click:Connect(function()
+    bodyHitboxEnabled = not bodyHitboxEnabled
+    if bodyHitboxEnabled then
+        bodyToggleBtn.Text = "🛡️ Hitbox ตัว: [ ON ]"
+        bodyToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 140, 75)
+    else
+        bodyToggleBtn.Text = "🛡️ Hitbox ตัว: [ OFF ]"
+        bodyToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    end
+end)
+
+fpsToggleBtn.MouseButton1Click:Connect(function()
+    fpsBoostEnabled = not fpsBoostEnabled
+    if fpsBoostEnabled then
+        fpsToggleBtn.Text = "⚡ Boost FPS (ลดเอฟเฟกต์): [ ON ]"
+        fpsToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 70, 50)
+
+        if setfpscap then setfpscap(30) end
+        Lighting.GlobalShadows = false
+
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.CastShadow = false
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                obj.Transparency = 1
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Trail") then
+                obj.Enabled = false
+            end
+        end
+    else
+        fpsToggleBtn.Text = "⚡ Boost FPS (ลดเอฟเฟกต์): [ OFF ]"
+        fpsToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+
+        if setfpscap then setfpscap(60) end
+        Lighting.GlobalShadows = true
+    end
+end)
+
+-- Hitbox Loop
+RunService.RenderStepped:Connect(function()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            local head = char:FindFirstChild("Head")
+            local torso = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+
+            if head then
+                if headHitboxEnabled then
+                    head.Size = Vector3.new(headSize, headSize, headSize)
+                    head.Transparency = 0.5
+                    head.CanCollide = false
+                else
+                    head.Size = Vector3.new(1.2, 1.2, 1.2)
+                    head.Transparency = 0
+                end
+            end
+
+            if torso then
+                if bodyHitboxEnabled then
+                    torso.Size = Vector3.new(bodySize, bodySize, bodySize)
+                    torso.Transparency = 0.5
+                    torso.CanCollide = false
+                else
+                    torso.Size = Vector3.new(2, 2, 1)
+                    torso.Transparency = 0
+                end
+            end
+        end
+    end
+end)
