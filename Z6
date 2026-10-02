@@ -1,0 +1,511 @@
+-- ========================================================
+-- ZzzZ Ultimate Hub - (Complete Version with 1-1000 Vehicle Speed)
+-- ========================================================
+
+local MY_DECAL_ID = "123456789" -- ใส่ Decal ID รูปของคุณตรงนี้ (เฉพาะตัวเลข)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+local imageUrl = "rbxthumb://type=Asset&id=" .. MY_DECAL_ID .. "&w=420&h=420"
+
+-- Global States
+local headHitboxEnabled = false
+local headHitboxSize = 10
+local bodyHitboxEnabled = false
+local bodyHitboxSize = 12
+local fastAttackEnabled = false
+local fpsBoostEnabled = false
+
+-- Vehicle Speed States (1 - 1,000)
+local vehicleBoostEnabled = false
+local currentVehicleSpeed = 100 -- ค่าเริ่มต้นความเร็ว
+
+-- Luck States
+local guaranteedLuckEnabled = false
+local currentPityCount = 0
+local prdCurrentChance = 0.1
+
+local isUIOpen = true
+local isTweening = false
+
+-- ScreenGui Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZzzZ_Ultimate_Hub"
+screenGui.ResetOnSpawn = false
+
+if gethui then
+    screenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(screenGui)
+    screenGui.Parent = CoreGui
+else
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Floating Toggle Button
+local toggleImageBtn = Instance.new("ImageButton")
+toggleImageBtn.Name = "ToggleImageBtn"
+toggleImageBtn.Size = UDim2.new(0, 65, 0, 65)
+toggleImageBtn.Position = UDim2.new(0, 20, 0.5, -32)
+toggleImageBtn.Image = imageUrl
+toggleImageBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+toggleImageBtn.Active = true
+toggleImageBtn.Draggable = true
+toggleImageBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0.5, 0)
+btnCorner.Parent = toggleImageBtn
+
+local btnStroke = Instance.new("UIStroke")
+btnStroke.Thickness = 3
+btnStroke.Parent = toggleImageBtn
+
+-- Main Frame UI
+local mainFrame = Instance.new("CanvasGroup")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 390, 0, 520)
+mainFrame.Position = UDim2.new(0.5, -195, 0.5, -260)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Thickness = 2.5
+mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+mainStroke.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -40, 0, 35)
+titleLabel.Position = UDim2.new(0, 10, 0, 8)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "✨ ZzzZ ULTIMATE HUB ✨"
+titleLabel.TextSize = 18
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.Parent = mainFrame
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -33, 0, 8)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+-- Navigation Tabs Setup
+local tabContainer = Instance.new("Frame")
+tabContainer.Size = UDim2.new(0.92, 0, 0, 32)
+tabContainer.Position = UDim2.new(0.04, 0, 0.08, 0)
+tabContainer.BackgroundTransparency = 1
+tabContainer.Parent = mainFrame
+
+local combatTabBtn = Instance.new("TextButton")
+combatTabBtn.Size = UDim2.new(0.31, 0, 1, 0)
+combatTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+combatTabBtn.Text = "⚔️ ต่อสู้"
+combatTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+combatTabBtn.Font = Enum.Font.SourceSansBold
+combatTabBtn.TextSize = 13
+combatTabBtn.Parent = tabContainer
+
+local vehicleTabBtn = Instance.new("TextButton")
+vehicleTabBtn.Size = UDim2.new(0.34, 0, 1, 0)
+vehicleTabBtn.Position = UDim2.new(0.33, 0, 0, 0)
+vehicleTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+vehicleTabBtn.Text = "🚗 โหมดรถ"
+vehicleTabBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+vehicleTabBtn.Font = Enum.Font.SourceSansBold
+vehicleTabBtn.TextSize = 13
+vehicleTabBtn.Parent = tabContainer
+
+local luckTabBtn = Instance.new("TextButton")
+luckTabBtn.Size = UDim2.new(0.31, 0, 1, 0)
+luckTabBtn.Position = UDim2.new(0.69, 0, 0, 0)
+luckTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+luckTabBtn.Text = "🍀 สุ่มดวง"
+luckTabBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+luckTabBtn.Font = Enum.Font.SourceSansBold
+luckTabBtn.TextSize = 13
+luckTabBtn.Parent = tabContainer
+
+-- Pages Setup
+local combatPage = Instance.new("ScrollingFrame")
+combatPage.Size = UDim2.new(1, 0, 0.88, 0)
+combatPage.Position = UDim2.new(0, 0, 0.12, 0)
+combatPage.BackgroundTransparency = 1
+combatPage.ScrollBarThickness = 4
+combatPage.CanvasSize = UDim2.new(0, 0, 0, 400)
+combatPage.Visible = true
+combatPage.Parent = mainFrame
+
+local vehiclePage = Instance.new("ScrollingFrame")
+vehiclePage.Size = UDim2.new(1, 0, 0.88, 0)
+vehiclePage.Position = UDim2.new(0, 0, 0.12, 0)
+vehiclePage.BackgroundTransparency = 1
+vehiclePage.ScrollBarThickness = 4
+vehiclePage.CanvasSize = UDim2.new(0, 0, 0, 300)
+vehiclePage.Visible = false
+vehiclePage.Parent = mainFrame
+
+local luckPage = Instance.new("ScrollingFrame")
+luckPage.Size = UDim2.new(1, 0, 0.88, 0)
+luckPage.Position = UDim2.new(0, 0, 0.12, 0)
+luckPage.BackgroundTransparency = 1
+luckPage.ScrollBarThickness = 4
+luckPage.CanvasSize = UDim2.new(0, 0, 0, 480)
+luckPage.Visible = false
+luckPage.Parent = mainFrame
+
+-- Tab Switching
+local function setActiveTab(btn, page)
+    combatPage.Visible = false
+    vehiclePage.Visible = false
+    luckPage.Visible = false
+    combatTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    vehicleTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    luckTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    combatTabBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+    vehicleTabBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+    luckTabBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+
+    page.Visible = true
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+end
+
+combatTabBtn.MouseButton1Click:Connect(function() setActiveTab(combatTabBtn, combatPage) end)
+vehicleTabBtn.MouseButton1Click:Connect(function() setActiveTab(vehicleTabBtn, vehiclePage) end)
+luckTabBtn.MouseButton1Click:Connect(function() setActiveTab(luckTabBtn, luckPage) end)
+
+local function toggleUI()
+    if isTweening then return end
+    isTweening = true
+    if isUIOpen then
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {GroupTransparency = 1}):Play()
+        task.wait(0.3)
+        mainFrame.Visible = false
+        isUIOpen = false
+    else
+        mainFrame.Visible = true
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {GroupTransparency = 0}):Play()
+        isUIOpen = true
+    end
+    isTweening = false
+end
+
+closeBtn.MouseButton1Click:Connect(toggleUI)
+toggleImageBtn.MouseButton1Click:Connect(toggleUI)
+
+RunService.RenderStepped:Connect(function()
+    local rainbowColor = Color3.fromHSV((tick() % 5) / 5, 0.8, 1)
+    mainStroke.Color = rainbowColor
+    btnStroke.Color = rainbowColor
+    titleLabel.TextColor3 = rainbowColor
+end)
+
+-- Helper Functions
+local function createButton(parent, text, position)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 38)
+    btn.Position = position
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 13
+    btn.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+    return btn
+end
+
+local function createSlider(parent, labelText, defaultVal, minVal, maxVal, position, callback)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(0.9, 0, 0, 48)
+    container.Position = position
+    container.BackgroundTransparency = 1
+    container.Parent = parent
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 18)
+    title.BackgroundTransparency = 1
+    title.Text = labelText .. ": " .. tostring(defaultVal)
+    title.TextColor3 = Color3.fromRGB(220, 220, 220)
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 12
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = container
+
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Size = UDim2.new(1, 0, 0, 10)
+    sliderBg.Position = UDim2.new(0, 0, 0, 26)
+    sliderBg.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    sliderBg.Parent = container
+
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(0, 5)
+    bgCorner.Parent = sliderBg
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((defaultVal - minVal)/(maxVal - minVal), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    fill.Parent = sliderBg
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 5)
+    fillCorner.Parent = fill
+
+    local dragging = false
+    local function update(input)
+        local pos = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
+        fill.Size = UDim2.new(pos, 0, 1, 0)
+        local val = math.max(minVal, math.floor(minVal + (maxVal - minVal) * pos))
+        title.Text = labelText .. ": " .. tostring(val)
+        callback(val)
+    end
+
+    sliderBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true update(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+end
+
+-- ==========================================================
+-- ⚔️ COMBAT TAB
+-- ==========================================================
+local headToggleBtn = createButton(combatPage, "🎯 Hitbox หัว: [ OFF ]", UDim2.new(0.05, 0, 0.02, 0))
+createSlider(combatPage, "📐 ขนาด Hitbox หัว", headHitboxSize, 1, 50, UDim2.new(0.05, 0, 0.12, 0), function(val) headHitboxSize = val end)
+
+local bodyToggleBtn = createButton(combatPage, "🛡️ Hitbox ตัว: [ OFF ]", UDim2.new(0.05, 0, 0.25, 0))
+createSlider(combatPage, "📐 ขนาด Hitbox ตัว", bodyHitboxSize, 1, 50, UDim2.new(0.05, 0, 0.35, 0), function(val) bodyHitboxSize = val end)
+
+local fastAttackBtn = createButton(combatPage, "⚡ ตีต่อเนื่องอัตโนมัติ (1 วิ): [ OFF ]", UDim2.new(0.05, 0, 0.48, 0))
+local fpsToggleBtn  = createButton(combatPage, "⚡ Boost FPS: [ OFF ]", UDim2.new(0.05, 0, 0.60, 0))
+
+headToggleBtn.MouseButton1Click:Connect(function()
+    headHitboxEnabled = not headHitboxEnabled
+    headToggleBtn.Text = headHitboxEnabled and "🎯 Hitbox หัว: [ ON ]" or "🎯 Hitbox หัว: [ OFF ]"
+    headToggleBtn.BackgroundColor3 = headHitboxEnabled and Color3.fromRGB(40, 140, 75) or Color3.fromRGB(35, 35, 45)
+end)
+
+bodyToggleBtn.MouseButton1Click:Connect(function()
+    bodyHitboxEnabled = not bodyHitboxEnabled
+    bodyToggleBtn.Text = bodyHitboxEnabled and "🛡️️ Hitbox ตัว: [ ON ]" or "🛡 Hitbox ตัว: [ OFF ]"
+    bodyToggleBtn.BackgroundColor3 = bodyHitboxEnabled and Color3.fromRGB(40, 140, 75) or Color3.fromRGB(35, 35, 45)
+end)
+
+fastAttackBtn.MouseButton1Click:Connect(function()
+    fastAttackEnabled = not fastAttackEnabled
+    fastAttackBtn.Text = fastAttackEnabled and "⚡ ตีต่อเนื่องอัตโนมัติ (1 วิ): [ ON ]" or "⚡ ตีต่อเนื่องอัตโนมัติ (1 วิ): [ OFF ]"
+    fastAttackBtn.BackgroundColor3 = fastAttackEnabled and Color3.fromRGB(220, 120, 0) or Color3.fromRGB(35, 35, 45)
+end)
+
+fpsToggleBtn.MouseButton1Click:Connect(function()
+    fpsBoostEnabled = not fpsBoostEnabled
+    fpsToggleBtn.Text = fpsBoostEnabled and "⚡ Boost FPS: [ ON ]" or "⚡ Boost FPS: [ OFF ]"
+    fpsToggleBtn.BackgroundColor3 = fpsBoostEnabled and Color3.fromRGB(180, 70, 50) or Color3.fromRGB(35, 35, 45)
+    Lighting.GlobalShadows = not fpsBoostEnabled
+end)
+
+-- ==========================================================
+-- 🚗 VEHICLE TAB (โหมดรถ ปรับได้ 1 - 1,000)
+-- ==========================================================
+local vehicleToggleBtn = createButton(vehiclePage, "🏎 โหมดสปีดรถ: [ OFF ]", UDim2.new(0.05, 0, 0.05, 0))
+createSlider(vehiclePage, "🚀 ระดับความเร็วรถ (1 - 1000)", currentVehicleSpeed, 1, 1000, UDim2.new(0.05, 0, 0.22, 0), function(val)
+    currentVehicleSpeed = val
+end)
+
+vehicleToggleBtn.MouseButton1Click:Connect(function()
+    vehicleBoostEnabled = not vehicleBoostEnabled
+    vehicleToggleBtn.Text = vehicleBoostEnabled and "🏎️ โหมดสปีดรถ: [ ON ]" or "🏎️ โหมดสปีดรถ: [ OFF ]"
+    vehicleToggleBtn.BackgroundColor3 = vehicleBoostEnabled and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(35, 35, 45)
+end)
+
+-- Vehicle Speed Engine (1 - 1,000)
+RunService.Stepped:Connect(function()
+    if not vehicleBoostEnabled then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid or not humanoid.SeatPart then return end
+
+    local seat = humanoid.SeatPart
+
+    if seat:IsA("VehicleSeat") then
+        seat.MaxSpeed = currentVehicleSpeed
+        seat.Torque = 50
+    end
+
+    local rootPart = seat.AssemblyRootPart or seat
+    if rootPart and UserInputService:IsKeyDown(Enum.KeyCode.W) then
+        rootPart.AssemblyLinearVelocity = rootPart.CFrame.LookVector * currentVehicleSpeed
+    end
+end)
+
+-- Fast Attack Logic
+local ATTACK_INTERVAL = 1.0
+local lastAttackTime = 0
+
+RunService.Stepped:Connect(function()
+    if not fastAttackEnabled then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local tool = char:FindFirstChildOfClass("Tool")
+
+    if tool and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+        if tick() - lastAttackTime >= ATTACK_INTERVAL then
+            lastAttackTime = tick()
+            tool:Activate()
+        end
+    end
+end)
+
+-- Hitbox Logic
+RunService.RenderStepped:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            local head = char:FindFirstChild("Head")
+            if head then
+                if headHitboxEnabled then
+                    head.Size = Vector3.new(headHitboxSize, headHitboxSize, headHitboxSize)
+                    head.Transparency = 0.6
+                    head.Color = Color3.fromRGB(0, 170, 255)
+                    head.Material = Enum.Material.Neon
+                    head.CanCollide = false
+                else
+                    head.Size = Vector3.new(2, 1, 1)
+                    head.Transparency = 0
+                    head.Material = Enum.Material.Plastic
+                end
+            end
+
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                if bodyHitboxEnabled then
+                    hrp.Size = Vector3.new(bodyHitboxSize, bodyHitboxSize, bodyHitboxSize)
+                    hrp.Transparency = 0.7
+                    hrp.Color = Color3.fromRGB(0, 255, 120)
+                    hrp.Material = Enum.Material.Neon
+                    hrp.CanCollide = false
+                else
+                    hrp.Size = Vector3.new(2, 2, 1)
+                    hrp.Transparency = 1
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================================
+-- 🍀 LUCK TAB (หมวดสุ่มดวง)
+-- ==========================================================
+local luckToggleBtn = createButton(luckPage, "🟢 การันตี 100%: [ OFF ]", UDim2.new(0.05, 0, 0.02, 0))
+
+local resultDisplay = Instance.new("TextLabel")
+resultDisplay.Size = UDim2.new(0.9, 0, 0, 38)
+resultDisplay.Position = UDim2.new(0.05, 0, 0.11, 0)
+resultDisplay.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+resultDisplay.Text = "กดปุ่มด้านล่างเพื่อสุ่มดวง!"
+resultDisplay.TextColor3 = Color3.fromRGB(255, 215, 0)
+resultDisplay.Font = Enum.Font.SourceSansBold
+resultDisplay.TextSize = 13
+resultDisplay.Parent = luckPage
+
+local resultCorner = Instance.new("UICorner")
+resultCorner.CornerRadius = UDim.new(0, 8)
+resultCorner.Parent = resultDisplay
+
+luckToggleBtn.MouseButton1Click:Connect(function()
+    guaranteedLuckEnabled = not guaranteedLuckEnabled
+    luckToggleBtn.Text = guaranteedLuckEnabled and "🟢 การันตี 100%: [ ON ]" or "🟢 การันตี 100%: [ OFF ]"
+    luckToggleBtn.BackgroundColor3 = guaranteedLuckEnabled and Color3.fromRGB(46, 184, 87) or Color3.fromRGB(35, 35, 45)
+    resultDisplay.Text = guaranteedLuckEnabled and "✨ เปิดการันตีแล้ว! สุ่มครั้งถัดไปได้ของดีที่สุด!" or "ปิดโหมดการันตี กลับสู่ระบบสุ่มปกติ"
+end)
+
+local prngBtn = createButton(luckPage, "🎲 1. สุ่มคณิตศาสตร์ (5% Rare)", UDim2.new(0.05, 0, 0.21, 0))
+prngBtn.MouseButton1Click:Connect(function()
+    if guaranteedLuckEnabled then
+        resultDisplay.Text = "👑 [ระบบ 1] ได้รับ: 🐉 ดาบมังกรตระการตา!" return
+    end
+    local chance = math.random()
+    if chance <= 0.05 then resultDisplay.Text = "🎉 [ระบบ 1] ได้รับ: 🐉 ดาบมังกร"
+    elseif chance <= 0.30 then resultDisplay.Text = "✨ [ระบบ 1] ได้รับ: ⚔ ดาบเหล็กกล้า"
+    else resultDisplay.Text = "💩 [ระบบ 1] ได้รับ: 🪵 กิ่งไม้ธรรมดา" end
+end)
+
+local weightBtn = createButton(luckPage, "⚖️ 2. สุ่มถ่วงน้ำหนัก (Common 80 / Rare 18 / Ultra 2)", UDim2.new(0.05, 0, 0.31, 0))
+weightBtn.MouseButton1Click:Connect(function()
+    if guaranteedLuckEnabled then
+        resultDisplay.Text = "👑 [ระบบ 2] ได้รับ: 💎 เพชรจักรพรรดิ์!" return
+    end
+    local items = {{name = "🪵 กิ่งไม้", weight = 80}, {name = "🛡️ เกราะเหล็ก", weight = 18}, {name = "💎 เพชรจักรพรรดิ์", weight = 2}}
+    local totalWeight, currentSum = 0, 0
+    for _, item in ipairs(items) do totalWeight = totalWeight + item.weight end
+    local roll = math.random(1, totalWeight)
+    for _, item in ipairs(items) do
+        currentSum = currentSum + item.weight
+        if roll <= currentSum then resultDisplay.Text = "🎰 [ระบบ 2] สุ่มได้: " .. item.name break end
+    end
+end)
+
+local pityBtn = createButton(luckPage, "🛡️ 3. สุ่มการันตี Pity (ครบ 10 รอบ)", UDim2.new(0.05, 0, 0.41, 0))
+pityBtn.MouseButton1Click:Connect(function()
+    if guaranteedLuckEnabled then resultDisplay.Text = "👑 [ระบบ 3] ได้รับ: 🌟 เทพมังกรสุริยะ!" return end
+    currentPityCount = currentPityCount + 1
+    if currentPityCount >= 10 then
+        currentPityCount = 0
+        resultDisplay.Text = "🔥 [ระบบ 3] ครบ 10 รอบ! ได้รับ: 🌟 เทพมังกรสุริยะ!"
+    else
+        local roll = math.random(1, 100)
+        if roll <= 5 then currentPityCount = 0 resultDisplay.Text = "🎉 [ระบบ 3] ติดคริ! ได้รับ: 🌟 เทพมังกรสุริยะ!"
+        else resultDisplay.Text = "❌ [ระบบ 3] ได้ของทั่วไป (Pity: " .. currentPityCount .. "/10)" end
+    end
+end)
+
+local prdBtn = createButton(luckPage, "📊 4. สุ่มคริติคอลสมดุล (PRD)", UDim2.new(0.05, 0, 0.51, 0))
+prdBtn.MouseButton1Click:Connect(function()
+    if guaranteedLuckEnabled then resultDisplay.Text = "👑 [ระบบ 4] ได้รับ: ⚡ ดาบอัสนีบาต!" return end
+    if math.random() <= prdCurrentChance then
+        local p = math.floor(prdCurrentChance * 100)
+        prdCurrentChance = 0.10
+        resultDisplay.Text = "💥 [ระบบ 4] คริติคอลสำเร็จ! (โอกาส " .. p .. "%)"
+    else
+        prdCurrentChance = math.min(prdCurrentChance + 0.15, 1.0)
+        resultDisplay.Text = "⚡ [ระบบ 4] ไม่ติดคริ... เพิ่มโอกาสรอบถัดไปเป็น: " .. math.floor(prdCurrentChance * 100) .. "%"
+    end
+end)
+
