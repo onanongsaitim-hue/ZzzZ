@@ -1,0 +1,480 @@
+-- ========================================================
+-- ZzzZ Utility Hub - Combat Skills & Transformations
+-- (Added: Windmill Punch Skill in Combat Tab)
+-- ========================================================
+
+-- ⚠ นำ Decal ID รูปของคุณมาใส่ตรงนี้ (ใส่เฉพาะตัวเลข)
+local MY_DECAL_ID = "123456789" 
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+local imageUrl = "rbxthumb://type=Asset&id=" .. MY_DECAL_ID .. "&w=420&h=420"
+
+-- Global States
+local headHitboxEnabled = false
+local bodyHitboxEnabled = false
+local fpsBoostEnabled = false
+
+local isUIOpen = true
+local isTweening = false
+
+-- Fist Skill States
+local fistModeEnabled = false
+local isSpinningFists = false
+
+-- Form States
+local currentForm = "None" -- "Dragon", "Clock", or "Fist"
+local isPerformingSpecial = false
+
+-- Dragon & Clock States
+local swordRingEnabled = false
+local dragonSwordsTable = {}
+local clockEnabled = false
+local clockModel = nil
+local minuteHandAngle = 0
+local hourHandAngle = 0
+local tickCount = 0
+
+-- ScreenGui Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZzzZ_Dragon_Clock_GUI"
+screenGui.ResetOnSpawn = false
+
+if gethui then
+    screenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(screenGui)
+    screenGui.Parent = CoreGui
+else
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Floating Toggle Hub Button
+local toggleImageBtn = Instance.new("ImageButton")
+toggleImageBtn.Name = "ToggleImageBtn"
+toggleImageBtn.Size = UDim2.new(0, 65, 0, 65)
+toggleImageBtn.Position = UDim2.new(0, 20, 0.5, -32)
+toggleImageBtn.Image = imageUrl
+toggleImageBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+toggleImageBtn.Active = true
+toggleImageBtn.Draggable = true
+toggleImageBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0.5, 0)
+btnCorner.Parent = toggleImageBtn
+
+local btnStroke = Instance.new("UIStroke")
+btnStroke.Thickness = 3
+btnStroke.Parent = toggleImageBtn
+
+-- --------------------------------------------------------
+-- ON-SCREEN SKILL BUTTONS CONTAINER
+-- --------------------------------------------------------
+local skillContainer = Instance.new("Frame")
+skillContainer.Name = "SkillButtonsContainer"
+skillContainer.Size = UDim2.new(0, 330, 0, 90)
+skillContainer.Position = UDim2.new(1, -350, 1, -110)
+skillContainer.BackgroundTransparency = 1
+skillContainer.Visible = false
+skillContainer.Parent = screenGui
+
+local skill1Btn = Instance.new("TextButton")
+skill1Btn.Size = UDim2.new(0, 100, 0, 80)
+skill1Btn.Position = UDim2.new(0, 0, 0, 0)
+skill1Btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+skill1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+skill1Btn.TextSize = 10
+skill1Btn.Font = Enum.Font.SourceSansBold
+skill1Btn.Parent = skillContainer
+
+local s1Corner = Instance.new("UICorner")
+s1Corner.CornerRadius = UDim.new(0, 12)
+s1Corner.Parent = skill1Btn
+
+local s1Stroke = Instance.new("UIStroke")
+s1Stroke.Thickness = 2
+s1Stroke.Parent = skill1Btn
+
+local skill2Btn = Instance.new("TextButton")
+skill2Btn.Size = UDim2.new(0, 100, 0, 80)
+skill2Btn.Position = UDim2.new(0, 110, 0, 0)
+skill2Btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+skill2Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+skill2Btn.TextSize = 10
+skill2Btn.Font = Enum.Font.SourceSansBold
+skill2Btn.Parent = skillContainer
+
+local s2Corner = Instance.new("UICorner")
+s2Corner.CornerRadius = UDim.new(0, 12)
+s2Corner.Parent = skill2Btn
+
+local s2Stroke = Instance.new("UIStroke")
+s2Stroke.Thickness = 2
+s2Stroke.Parent = skill2Btn
+
+local skill3Btn = Instance.new("TextButton")
+skill3Btn.Size = UDim2.new(0, 100, 0, 80)
+skill3Btn.Position = UDim2.new(0, 220, 0, 0)
+skill3Btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+skill3Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+skill3Btn.TextSize = 10
+skill3Btn.Font = Enum.Font.SourceSansBold
+skill3Btn.Parent = skillContainer
+
+local s3Corner = Instance.new("UICorner")
+s3Corner.CornerRadius = UDim.new(0, 12)
+s3Corner.Parent = skill3Btn
+
+local s3Stroke = Instance.new("UIStroke")
+s3Stroke.Thickness = 2
+s3Stroke.Parent = skill3Btn
+
+local function updateSkillButtons()
+    if fistModeEnabled then
+        skillContainer.Visible = true
+        skill1Btn.Visible = true skill2Btn.Visible = false skill3Btn.Visible = false
+        skill1Btn.Text = "🥊\nSKILL 1\n[ หมัดหมุนปลิวออกโลก ]"
+        s1Stroke.Color = Color3.fromRGB(255, 80, 0)
+
+    elseif currentForm == "Dragon" then
+        skillContainer.Visible = true
+        skill1Btn.Visible = true skill2Btn.Visible = true skill3Btn.Visible = true
+        skill1Btn.Text = "🔥\nSKILL 1\n[ คอมโบดาบไฟ ]"
+        s1Stroke.Color = Color3.fromRGB(255, 120, 0)
+
+        skill2Btn.Text = "🐉\nSKILL 2\n[ 10 ดาบเหล็กพุ่ง ]"
+        s2Stroke.Color = Color3.fromRGB(255, 50, 0)
+
+        skill3Btn.Text = "✨\nSKILL 3\n[ 2 ดาบศักดิ์สิทธิ์ ]"
+        s3Stroke.Color = Color3.fromRGB(255, 230, 100)
+
+    elseif currentForm == "Clock" then
+        skillContainer.Visible = true
+        skill1Btn.Visible = true skill2Btn.Visible = true skill3Btn.Visible = true
+        skill1Btn.Text = "⚡\nSKILL 1\n[ เร่งเวลาวิ่งเร็ว 10s ]"
+        s1Stroke.Color = Color3.fromRGB(0, 200, 255)
+
+        skill2Btn.Text = "⏳\nSKILL 2\n[ เวลาชะลอช้าลง ]"
+        s2Stroke.Color = Color3.fromRGB(100, 150, 255)
+
+        skill3Btn.Text = "🏹\nSKILL 3\n[ ศรเวลาศักดิ์สิทธิ์ ]"
+        s3Stroke.Color = Color3.fromRGB(255, 255, 255)
+    else
+        skillContainer.Visible = false
+    end
+end
+
+-- Main Frame UI
+local mainFrame = Instance.new("CanvasGroup")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 360, 0, 440)
+mainFrame.Position = UDim2.new(0.5, -180, 0.5, -220)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.GroupTransparency = 0
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Thickness = 2.5
+mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+mainStroke.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -40, 0, 35)
+titleLabel.Position = UDim2.new(0, 10, 0, 12)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "✨ ZzzZ ULTIMATE HUB ✨"
+titleLabel.TextSize = 20
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.Parent = mainFrame
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -33, 0, 8)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+-- Tabs Setup
+local tabContainer = Instance.new("Frame")
+tabContainer.Size = UDim2.new(0.92, 0, 0, 32)
+tabContainer.Position = UDim2.new(0.04, 0, 0.12, 0)
+tabContainer.BackgroundTransparency = 1
+tabContainer.Parent = mainFrame
+
+local combatTabBtn = Instance.new("TextButton")
+combatTabBtn.Size = UDim2.new(0.31, 0, 1, 0)
+combatTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+combatTabBtn.Text = "⚔️ ต่อสู้"
+combatTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+combatTabBtn.TextSize = 12
+combatTabBtn.Font = Enum.Font.SourceSansBold
+combatTabBtn.Parent = tabContainer
+
+local transformTabBtn = Instance.new("TextButton")
+transformTabBtn.Size = UDim2.new(0.31, 0, 1, 0)
+transformTabBtn.Position = UDim2.new(0.345, 0, 0, 0)
+transformTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+transformTabBtn.Text = "🐉 ดาบมังกร"
+transformTabBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+transformTabBtn.TextSize = 12
+transformTabBtn.Font = Enum.Font.SourceSansBold
+transformTabBtn.Parent = transformTabBtn.Parent
+
+local clockTabBtn = Instance.new("TextButton")
+clockTabBtn.Size = UDim2.new(0.31, 0, 1, 0)
+clockTabBtn.Position = UDim2.new(0.69, 0, 0, 0)
+clockTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+clockTabBtn.Text = "⏱️ นาฬิกาเวลา"
+clockTabBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+clockTabBtn.TextSize = 12
+clockTabBtn.Font = Enum.Font.SourceSansBold
+clockTabBtn.Parent = tabContainer
+
+local combatPage = Instance.new("Frame")
+combatPage.Size = UDim2.new(1, 0, 0.78, 0)
+combatPage.Position = UDim2.new(0, 0, 0.22, 0)
+combatPage.BackgroundTransparency = 1
+combatPage.Visible = true
+combatPage.Parent = mainFrame
+
+local transformPage = Instance.new("Frame")
+transformPage.Size = UDim2.new(1, 0, 0.78, 0)
+transformPage.Position = UDim2.new(0, 0, 0.22, 0)
+transformPage.BackgroundTransparency = 1
+transformPage.Visible = false
+transformPage.Parent = mainFrame
+
+local clockPage = Instance.new("Frame")
+clockPage.Size = UDim2.new(1, 0, 0.78, 0)
+clockPage.Position = UDim2.new(0, 0, 0.22, 0)
+clockPage.BackgroundTransparency = 1
+clockPage.Visible = false
+clockPage.Parent = mainFrame
+
+combatTabBtn.MouseButton1Click:Connect(function()
+    combatPage.Visible = true transformPage.Visible = false clockPage.Visible = false
+    combatTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    transformTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    clockTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+end)
+
+transformTabBtn.MouseButton1Click:Connect(function()
+    combatPage.Visible = false transformPage.Visible = true clockPage.Visible = false
+    transformTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    combatTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    clockTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+end)
+
+clockTabBtn.MouseButton1Click:Connect(function()
+    combatPage.Visible = false transformPage.Visible = false clockPage.Visible = true
+    clockTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    combatTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    transformTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+end)
+
+local function toggleUI()
+    if isTweening then return end
+    isTweening = true
+    if isUIOpen then
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {GroupTransparency = 1}):Play()
+        task.wait(0.3)
+        mainFrame.Visible = false
+        isUIOpen = false
+    else
+        mainFrame.Visible = true
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {GroupTransparency = 0}):Play()
+        isUIOpen = true
+    end
+    isTweening = false
+end
+
+closeBtn.MouseButton1Click:Connect(toggleUI)
+toggleImageBtn.MouseButton1Click:Connect(toggleUI)
+
+RunService.RenderStepped:Connect(function()
+    local hue = (tick() % 5) / 5
+    local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
+    mainStroke.Color = rainbowColor
+    btnStroke.Color = rainbowColor
+    titleLabel.TextColor3 = rainbowColor
+end)
+
+local function createButton(parent, text, position)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 36)
+    btn.Position = position
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+    return btn
+end
+
+local function sendToSpace(targetChar)
+    if not targetChar then return end
+    local targetHrP = targetChar:FindFirstChild("HumanoidRootPart") or targetChar:FindFirstChild("Torso")
+    local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+
+    if targetHrP and targetHum then
+        targetHum.PlatformStand = true
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        bodyVelocity.Velocity = Vector3.new(math.random(-500, 500), 500000, math.random(-500, 500))
+        bodyVelocity.Parent = targetHrP
+        game:GetService("Debris"):AddItem(bodyVelocity, 1.5)
+    end
+end
+
+-- ==========================================================
+-- TAB 1: COMBAT CONTROLS (เพิ่มระบบมือต่อย + Hitbox)
+-- ==========================================================
+local headToggleBtn = createButton(combatPage, "🎯 Hitbox หัว: [ OFF ]", UDim2.new(0.05, 0, 0.03, 0))
+local bodyToggleBtn = createButton(combatPage, "🛡️ Hitbox ตัว: [ OFF ]", UDim2.new(0.05, 0, 0.18, 0))
+local fpsToggleBtn  = createButton(combatPage, "⚡ Boost FPS: [ OFF ]", UDim2.new(0.05, 0, 0.33, 0))
+local fistToggleBtn = createButton(combatPage, "🥊 เปิดใช้งานหมัดต่อย: [ OFF ]", UDim2.new(0.05, 0, 0.48, 0))
+
+headToggleBtn.MouseButton1Click:Connect(function()
+    headHitboxEnabled = not headHitboxEnabled
+    headToggleBtn.Text = headHitboxEnabled and "🎯 Hitbox หัว: [ ON ]" or "🎯 Hitbox หัว: [ OFF ]"
+    headToggleBtn.BackgroundColor3 = headHitboxEnabled and Color3.fromRGB(40, 140, 75) or Color3.fromRGB(35, 35, 45)
+end)
+
+bodyToggleBtn.MouseButton1Click:Connect(function()
+    bodyHitboxEnabled = not bodyHitboxEnabled
+    bodyToggleBtn.Text = bodyHitboxEnabled and "🛡️ Hitbox ตัว: [ ON ]" or "🛡️ Hitbox ตัว: [ OFF ]"
+    bodyToggleBtn.BackgroundColor3 = bodyHitboxEnabled and Color3.fromRGB(40, 140, 75) or Color3.fromRGB(35, 35, 45)
+end)
+
+fpsToggleBtn.MouseButton1Click:Connect(function()
+    fpsBoostEnabled = not fpsBoostEnabled
+    fpsToggleBtn.Text = fpsBoostEnabled and "⚡ Boost FPS: [ ON ]" or "⚡ Boost FPS: [ OFF ]"
+    fpsToggleBtn.BackgroundColor3 = fpsBoostEnabled and Color3.fromRGB(180, 70, 50) or Color3.fromRGB(35, 35, 45)
+    Lighting.GlobalShadows = not fpsBoostEnabled
+end)
+
+fistToggleBtn.MouseButton1Click:Connect(function()
+    fistModeEnabled = not fistModeEnabled
+    fistToggleBtn.Text = fistModeEnabled and "🥊 เปิดใช้งานหมัดต่อย: [ ON ]" or "🥊 เปิดใช้งานหมัดต่อย: [ OFF ]"
+    fistToggleBtn.BackgroundColor3 = fistModeEnabled and Color3.fromRGB(220, 80, 0) or Color3.fromRGB(35, 35, 45)
+    updateSkillButtons()
+end)
+
+-- Dynamic Hitbox Loop
+RunService.RenderStepped:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            
+            local head = char:FindFirstChild("Head")
+            if head then
+                if headHitboxEnabled then
+                    head.Size = Vector3.new(10, 10, 10)
+                    head.Transparency = 0.6
+                    head.Color = Color3.fromRGB(0, 170, 255)
+                    head.Material = Enum.Material.Neon
+                    head.CanCollide = false
+                else
+                    head.Size = Vector3.new(2, 1, 1)
+                    head.Transparency = 0
+                    head.Material = Enum.Material.Plastic
+                end
+            end
+
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                if bodyHitboxEnabled then
+                    hrp.Size = Vector3.new(12, 12, 12)
+                    hrp.Transparency = 0.7
+                    hrp.Color = Color3.fromRGB(0, 255, 120)
+                    hrp.Material = Enum.Material.Neon
+                    hrp.CanCollide = false
+                else
+                    hrp.Size = Vector3.new(2, 2, 1)
+                    hrp.Transparency = 1
+                end
+            end
+        end
+    end
+end)
+
+-- 🥊 SKILL 1: หมัดหมุนเร็วมาก + โดนคนปลิวออกนอกแมพ
+local function runWindmillPunchSkill()
+    if isSpinningFists then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    local leftArm = char:FindFirstChild("Left Arm") or char:FindFirstChild("LeftUpperArm")
+    local rightArm = char:FindFirstChild("Right Arm") or char:FindFirstChild("RightUpperArm")
+    if not leftArm or not rightArm then return end
+
+    isSpinningFists = true
+
+    -- สร้างเอฟเฟกต์หมุนพายุรอบแขน
+    local touchConnections = {}
+
+    local function setupArmTouch(arm)
+        local conn = arm.Touched:Connect(function(hit)
+            local hitChar = hit.Parent
+            if hitChar and hitChar:FindFirstChildOfClass("Humanoid") and hitChar ~= char then
+                sendToSpace(hitChar)
+            end
+        end)
+        table.insert(touchConnections, conn)
+    end
+
+    setupArmTouch(leftArm)
+    setupArmTouch(rightArm)
+
+    -- แขนหมุนด้วยความเร็วสูง เป็นเวลา 3 วินาที
+    local startTime = tick()
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        local elapsed = tick() - startTime
+        if elapsed >= 3 then
+            conn:Disconnect()
+            for _, c in ipairs(touchConnections) do c:Disconnect() end
+            isSpinningFists = false
+        else
+            local angle = elapsed * 50 -- ความเร็วในการหมุนแขน
+            leftArm.CFrame = leftArm.CFrame * CFrame.Angles(math.rad(angle), 0, 0)
+            rightArm.CFrame = rightArm.CFrame * CFrame.Angles(-math.rad(angle), 0, 0)
+        end
+    end)
+end
+
+-- --------------------------------------------------------
+-- MASTER SKILL BUTTON CONNECTORS
+-- --------------------------------------------------------
+skill1Btn.MouseButton1Click:Connect(function()
+    if fistModeEnabled then
+        runWindmillPunchSkill()
+    elseif currentForm == "Dragon" then
+        -- Execute Dragon Skill 1
+    elseif currentForm == "Clock" then
+        -- Execute Clock Skill 1
+    end
+end)
