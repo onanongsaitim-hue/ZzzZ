@@ -1,0 +1,394 @@
+-- [[ ZzzZ Ultimate Hub - Full Version with Health Mod ]] --
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local TextService = game:GetService("TextService")
+
+---------------------------------------------------------
+-- CONFIG & DECAL ID
+---------------------------------------------------------
+local CORRECT_KEY = "zzz2026"
+local MY_DECAL_ID = "123456789" -- ใส่ Decal ID ของคุณที่นี่
+
+---------------------------------------------------------
+-- HEALTH MOD STATE (ค่าคอนฟิกสำหรับโหมดเพิ่มเลือด)
+---------------------------------------------------------
+local HealthModState = {
+    MaxHealthValue = 500,
+    AutoRegenEnabled = false,
+    RegenAmount = 10,
+    RegenInterval = 1,
+    GodModeEnabled = false
+}
+
+---------------------------------------------------------
+-- SOUND SYSTEM (Google TTS Welcome)
+---------------------------------------------------------
+local function playWelcomeSound()
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://1848354536" -- หรือใส่ Asset ID เสียงไทยตามต้องการ
+    sound.Volume = 2
+    sound.Parent = workspace
+    sound:Play()
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+end
+
+---------------------------------------------------------
+-- GUI CREATION & MAIN HUB
+---------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ZzzZ_UltimateHub"
+ScreenGui.ResetOnSpawn = false
+
+-- ตรวจสอบและลบ UI เก่าถ้ามีอยู่แล้ว
+if game:GetService("CoreGui"):FindFirstChild("ZzzZ_UltimateHub") then
+    game:GetService("CoreGui"):FindFirstChild("ZzzZ_UltimateHub"):Destroy()
+end
+ScreenGui.Parent = game:GetService("CoreGui")
+
+---------------------------------------------------------
+-- KEY SYSTEM WINDOW
+---------------------------------------------------------
+local KeyFrame = Instance.new("Frame")
+KeyFrame.Name = "KeyFrame"
+KeyFrame.Size = UDim2.new(0, 350, 0, 200)
+KeyFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
+KeyFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+KeyFrame.BorderSizePixel = 0
+KeyFrame.Parent = ScreenGui
+
+local KeyCorner = Instance.new("UICorner")
+KeyCorner.CornerRadius = UDim.new(0, 10)
+KeyCorner.Parent = KeyFrame
+
+local KeyStroke = Instance.new("UIStroke")
+KeyStroke.Thickness = 2
+KeyStroke.Color = Color3.fromRGB(0, 170, 255)
+KeyStroke.Parent = KeyFrame
+
+local KeyTitle = Instance.new("TextLabel")
+KeyTitle.Size = UDim2.new(1, 0, 0, 40)
+KeyTitle.BackgroundTransparency = 1
+KeyTitle.Text = "🔑 ZzzZ Key System"
+KeyTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyTitle.TextSize = 18
+KeyTitle.Font = Enum.Font.SourceSansBold
+KeyTitle.Parent = KeyFrame
+
+local KeyInput = Instance.new("TextBox")
+KeyInput.Size = UDim2.new(0.8, 0, 0, 40)
+KeyInput.Position = UDim2.new(0.1, 0, 0.35, 0)
+KeyInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+KeyInput.Text = ""
+KeyInput.PlaceholderText = "Enter Key Here..."
+KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyInput.Font = Enum.Font.SourceSans
+KeyInput.TextSize = 16
+KeyInput.Parent = KeyFrame
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 6)
+InputCorner.Parent = KeyInput
+
+local SubmitBtn = Instance.new("TextButton")
+SubmitBtn.Size = UDim2.new(0.8, 0, 0, 35)
+SubmitBtn.Position = UDim2.new(0.1, 0, 0.65, 0)
+SubmitBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+SubmitBtn.Text = "SUBMIT KEY"
+SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SubmitBtn.Font = Enum.Font.SourceSansBold
+SubmitBtn.TextSize = 16
+SubmitBtn.Parent = KeyFrame
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = SubmitBtn
+
+---------------------------------------------------------
+-- MAIN HUB WINDOW
+---------------------------------------------------------
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 550, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+
+-- Rainbow Stroke Effect
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 2
+MainStroke.Parent = MainFrame
+
+task.spawn(function()
+    local hue = 0
+    while task.wait(0.03) do
+        hue = (hue + 0.01) % 1
+        MainStroke.Color = Color3.fromHSV(hue, 0.8, 1)
+    end
+end)
+
+-- Sidebar (Tabs Container)
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 130, 1, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+local SideCorner = Instance.new("UICorner")
+SideCorner.CornerRadius = UDim.new(0, 12)
+SideCorner.Parent = Sidebar
+
+local SideLayout = Instance.new("UIListLayout")
+SideLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SideLayout.Padding = UDim.new(0, 5)
+SideLayout.Parent = Sidebar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 45)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "⚡ ZzzZ HUB"
+TitleLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextSize = 18
+TitleLabel.Parent = Sidebar
+
+-- Content Frame
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, -140, 1, -10)
+ContentFrame.Position = UDim2.new(0, 135, 0, 5)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+---------------------------------------------------------
+-- TAB CREATION SYSTEM
+---------------------------------------------------------
+local Tabs = {}
+local TabButtons = {}
+
+local function CreateTab(tabName)
+    local TabButton = Instance.new("TextButton")
+    TabButton.Size = UDim2.new(0.9, 0, 0, 35)
+    TabButton.Position = UDim2.new(0.05, 0, 0, 0)
+    TabButton.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    TabButton.Text = tabName
+    TabButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TabButton.Font = Enum.Font.SourceSans
+    TabButton.TextSize = 14
+    TabButton.Parent = Sidebar
+
+    local TBtnCorner = Instance.new("UICorner")
+    TBtnCorner.CornerRadius = UDim.new(0, 6)
+    TBtnCorner.Parent = TabButton
+
+    local TabPage = Instance.new("ScrollingFrame")
+    TabPage.Size = UDim2.new(1, 0, 1, 0)
+    TabPage.BackgroundTransparency = 1
+    TabPage.BorderSizePixel = 0
+    TabPage.ScrollBarThickness = 4
+    TabPage.Visible = false
+    TabPage.Parent = ContentFrame
+
+    local PageLayout = Instance.new("UIListLayout")
+    PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    PageLayout.Padding = UDim.new(0, 8)
+    PageLayout.Parent = TabPage
+
+    TabButton.MouseButton1Click:Connect(function()
+        for _, page in pairs(Tabs) do page.Visible = false end
+        for _, btn in pairs(TabButtons) do 
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40) 
+            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+        TabPage.Visible = true
+        TabButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+
+    Tabs[tabName] = TabPage
+    TabButtons[tabName] = TabButton
+    return TabPage
+end
+
+---------------------------------------------------------
+-- TAB 1: ❤️ HEALTH MOD (โหมดเพิ่มเลือดสคริปต์ใหม่)
+---------------------------------------------------------
+local HealthTab = CreateTab("❤️ Health Mod")
+
+-- Helper Function: สร้างปุ่มกด
+local function CreateButton(parent, text, callback)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(0.95, 0, 0, 35)
+    Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    Btn.Text = text
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Font = Enum.Font.SourceSansBold
+    Btn.TextSize = 14
+    Btn.Parent = parent
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = Btn
+
+    Btn.MouseButton1Click:Connect(callback)
+    return Btn
+end
+
+-- Helper Function: สร้าง Toggle Switch
+local function CreateToggle(parent, text, default, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0.95, 0, 0, 35)
+    Frame.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+    Frame.Parent = parent
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = Frame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0.7, 0, 1, 0)
+    Label.Position = UDim2.new(0.05, 0, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.Font = Enum.Font.SourceSans
+    Label.TextSize = 14
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Size = UDim2.new(0.2, 0, 0.7, 0)
+    ToggleBtn.Position = UDim2.new(0.75, 0, 0.15, 0)
+    ToggleBtn.BackgroundColor3 = default and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(80, 80, 90)
+    ToggleBtn.Text = default and "ON" or "OFF"
+    ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleBtn.Font = Enum.Font.SourceSansBold
+    ToggleBtn.TextSize = 12
+    ToggleBtn.Parent = Frame
+
+    local TCorner = Instance.new("UICorner")
+    TCorner.CornerRadius = UDim.new(0, 4)
+    TCorner.Parent = ToggleBtn
+
+    local state = default
+    ToggleBtn.MouseButton1Click:Connect(function()
+        state = not state
+        ToggleBtn.Text = state and "ON" or "OFF"
+        ToggleBtn.BackgroundColor3 = state and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(80, 80, 90)
+        callback(state)
+    end)
+end
+
+-- 1. เพิ่ม Max Health (เพิ่มหลอดเลือดสูงสุด)
+CreateButton(HealthTab, "➕ Set Max Health to 1,000 HP", function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.MaxHealth = 1000
+        char.Humanoid.Health = 1000
+    end
+end)
+
+CreateButton(HealthTab, "🔥 Set Max Health to 5,000 HP", function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.MaxHealth = 5000
+        char.Humanoid.Health = 5000
+    end
+end)
+
+-- 2. ฟื้นฟูเลือดทันที 100%
+CreateButton(HealthTab, "💊 Instant Heal 100%", function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.Health = char.Humanoid.MaxHealth
+    end
+end)
+
+-- 3. ระบบ Auto Regen (ปั๊มเลือดอัตโนมัติ)
+CreateToggle(HealthTab, "🔄 Auto Heal (10 HP/sec)", false, function(val)
+    HealthModState.AutoRegenEnabled = val
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(HealthModState.RegenInterval)
+        if HealthModState.AutoRegenEnabled then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("Humanoid") then
+                local hum = char.Humanoid
+                if hum.Health > 0 and hum.Health < hum.MaxHealth then
+                    hum.Health = math.min(hum.Health + HealthModState.RegenAmount, hum.MaxHealth)
+                end
+            end
+        end
+    end
+end)
+
+-- 4. ระบบ God Mode (ล็อคเลือดอมตะ)
+CreateToggle(HealthTab, "🛡️️ God Mode (Lock HP)", false, function(val)
+    HealthModState.GodModeEnabled = val
+end)
+
+RunService.RenderStepped:Connect(function()
+    if HealthModState.GodModeEnabled then
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.Health = char.Humanoid.MaxHealth
+        end
+    end
+end)
+
+---------------------------------------------------------
+-- TABS อื่นๆ ใน HUB
+---------------------------------------------------------
+local CombatTab   = CreateTab("⚔️ Combat")
+local MoveTab     = CreateTab("🏃 Movement")
+local VisionTab   = CreateTab("👁️ Vision")
+local VehicleTab  = CreateTab("🚗 Vehicle")
+local LuckTab     = CreateTab("🍀 Luck Mod")
+
+-- ตัวอย่างคอนเทนต์ Tab อื่นๆ
+CreateButton(MoveTab, "🧱 Toggle Noclip (เดินทะลุกำแพง)", function()
+    local char = LocalPlayer.Character
+    if char then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = not part.CanCollide
+            end
+        end
+    end
+end)
+
+---------------------------------------------------------
+-- KEY VERIFICATION LOGIC
+---------------------------------------------------------
+SubmitBtn.MouseButton1Click:Connect(function()
+    if KeyInput.Text == CORRECT_KEY then
+        KeyFrame.Visible = false
+        MainFrame.Visible = true
+        
+        -- เปิด Tab แรกให้อัตโนมัติ
+        Tabs["❤️ Health Mod"].Visible = true
+        TabButtons["❤️ Health Mod"].BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        TabButtons["❤️ Health Mod"].TextColor3 = Color3.fromRGB(255, 255, 255)
+        
+        playWelcomeSound()
+    else
+        SubmitBtn.Text = "❌ WRONG KEY!"
+        SubmitBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        task.wait(1.5)
+        SubmitBtn.Text = "SUBMIT KEY"
+        SubmitBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    end
+end)
