@@ -1,0 +1,182 @@
+-- LocalScript: วางไว้ใน StarterPlayer -> StarterPlayerScripts หรือ StarterGui
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+---------------------------------------------------------
+-- 1. สร้าง ScreenGui (กำหนด ResetOnSpawn = false เพื่อให้ตายแล้ว UI ไม่หาย)
+---------------------------------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZzzZ_MainScreenGui"
+screenGui.ResetOnSpawn = false -- สำคัญ: ไม่ลบ UI เมื่อตัวละครตาย
+screenGui.Parent = playerGui
+
+---------------------------------------------------------
+-- ระบบทำขอบสีรุ้ง (Rainbow Stroke)
+---------------------------------------------------------
+local rainbowStrokes = {}
+
+local function addRainbowStroke(guiObject, thickness)
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = thickness or 3
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = guiObject
+	table.insert(rainbowStrokes, stroke)
+	return stroke
+end
+
+local hue = 0
+RunService.RenderStepped:Connect(function(deltaTime)
+	hue = (hue + deltaTime * 0.4) % 1
+	local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
+	for _, stroke in ipairs(rainbowStrokes) do
+		if stroke and stroke.Parent then
+			stroke.Color = rainbowColor
+		end
+	end
+end)
+
+---------------------------------------------------------
+-- 2. สร้างหน้าต่างหลัก (Main Window)
+---------------------------------------------------------
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 320, 0, 200)
+mainFrame.Position = UDim2.new(0.5, -160, 0.5, -100)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- พื้นหลังสีดำ
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- มุมโค้งของหน้าต่าง
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 16)
+mainCorner.Parent = mainFrame
+
+-- ใส่ขอบสีรุ้งให้หน้าต่างหลัก
+addRainbowStroke(mainFrame, 3)
+
+-- ข้อความมงกุฎ + ZzzZ
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, 0, 0, 50)
+titleLabel.Position = UDim2.new(0, 0, 0, 15)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "👑  ZzzZ  👑"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 28
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.Parent = mainFrame
+
+-- ข้อความ ยินดีต้อนรับ
+local welcomeLabel = Instance.new("TextLabel")
+welcomeLabel.Name = "WelcomeLabel"
+welcomeLabel.Size = UDim2.new(1, -40, 0, 40)
+welcomeLabel.Position = UDim2.new(0, 20, 0, 65)
+welcomeLabel.BackgroundTransparency = 1
+welcomeLabel.Text = "ยินดีต้อนรับ"
+welcomeLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+welcomeLabel.TextSize = 22
+welcomeLabel.Font = Enum.Font.Garamond
+welcomeLabel.Parent = mainFrame
+
+-- ปุ่มกดปิดหน้าต่าง (พับเก็บเป็นวงกลม)
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 120, 0, 36)
+closeButton.Position = UDim2.new(0.5, -60, 0, 130)
+closeButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+closeButton.Text = "ย่อหน้าต่าง"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 16
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.Parent = mainFrame
+
+local closeBtnCorner = Instance.new("UICorner")
+closeBtnCorner.CornerRadius = UDim.new(0, 10)
+closeBtnCorner.Parent = closeButton
+
+---------------------------------------------------------
+-- 3. สร้างปุ่มวงกลม (Circle Button) แบบลากได้
+---------------------------------------------------------
+local circleBtn = Instance.new("TextButton")
+circleBtn.Name = "CircleButton"
+circleBtn.Size = UDim2.new(0, 60, 0, 60)
+circleBtn.Position = UDim2.new(0.05, 0, 0.5, -30)
+circleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- พื้นหลังสีดำ
+circleBtn.Text = "👑"
+circleBtn.TextSize = 28
+circleBtn.Visible = false -- ตอนแรกยังไม่แสดง
+circleBtn.Parent = screenGui
+
+-- ทำเป็นทรงกลมเพอร์เฟกต์
+local circleCorner = Instance.new("UICorner")
+circleCorner.CornerRadius = UDim.new(1, 0)
+circleCorner.Parent = circleBtn
+
+-- ใส่ขอบสีรุ้งให้วงกลม
+addRainbowStroke(circleBtn, 3)
+
+---------------------------------------------------------
+-- ระบบ Drag & Drop (ลากปุ่มวงกลมไปมาได้)
+---------------------------------------------------------
+local dragging = false
+local dragStartPos = nil
+local frameStartPos = nil
+local totalDragDistance = 0
+
+circleBtn.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStartPos = input.Position
+		frameStartPos = circleBtn.Position
+		totalDragDistance = 0
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStartPos
+		totalDragDistance = delta.Magnitude
+		circleBtn.Position = UDim2.new(
+			frameStartPos.X.Scale,
+			frameStartPos.X.Offset + delta.X,
+			frameStartPos.Y.Scale,
+			frameStartPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+---------------------------------------------------------
+-- การสลับเปิด-ปิด หน้าต่าง UI
+---------------------------------------------------------
+-- พับเก็บเป็นวงกลม
+closeButton.MouseButton1Click:Connect(function()
+	mainFrame.Visible = false
+	circleBtn.Visible = true
+end)
+
+-- กดที่วงกลมเพื่อเปิดหน้าต่างหลัก (ป้องกันกรณีลากปุ่มอยู่แล้วเผลอคลิก)
+circleBtn.MouseButton1Click:Connect(function()
+	if totalDragDistance < 5 then -- ถ้าลากไม่เกิน 5 pixel ถือว่าเป็นการคลิก
+		circleBtn.Visible = false
+		mainFrame.Visible = true
+	end
+end)
+```eof
+
+### คุณสมบัติของสคริปต์นี้:
+1. **ข้อความตามโจทย์:** มีข้อความ **`ZzzZ`**, ข้อความ **`ยินดีต้อนรับ`** และไอคอน **มงกุฎ (👑)**
+2. **กรอบสีรุ้ง:** ตัวหน้าต่างและปุ่มวงกลมเปลี่ยนสีเป็นสายรุ้งแบบอนิเมชันตลอดเวลา
+3. **พับเก็บเป็นวงกลมลากได้:** เมื่อกดปุ่มย่อหน้าต่าง UI จะซ่อนลงแล้วกลายเป็นวงกลมขอบสีรุ้ง ซึ่งคุณสามารถใช้เมาส์หรือนิ้วแตะลากย้ายตำแหน่งไปมาบนหน้าจอได้
+4. **กดเปิดกลับขึ้นมา:** คลิกที่วงกลมจะขยายหน้าต่าง UI หลักขึ้นมาอีกครั้ง
+5. **ตายแล้ว UI ไม่หาย:** กำหนดค่า `ResetOnSpawn = false` ไว้ ทำให้ UI ยังคงอยู่แม้ตัวละครจะเกิดใหม่
