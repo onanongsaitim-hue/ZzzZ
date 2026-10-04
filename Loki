@@ -1,0 +1,129 @@
+-- [[ Loki Dressing UI Script ]] --
+-- วางสคริปต์นี้ใน StarterPlayer -> StarterPlayerScripts หรือ StarterGui (ใช้ LocalScript)
+
+local Players = game:GetService("Players")
+local InsertService = game:GetService("InsertService")
+local player = Players.LocalPlayer
+
+-- 1. Asset IDs ของ Loki ที่ส่งมา
+local LOKI_CAPE_ID = 81598365316693   -- ผ้าคลุม Loki
+local LOKI_CROWN_ID = 81996152615619  -- มงกุฎ/เขา Loki
+
+-- 2. สร้าง ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "LokiDressUpUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- 3. สร้าง Frame หน้าต่าง UI
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 240, 0, 240)
+mainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 45, 25) -- โทนสีเขียวสไตล์ Loki
+mainFrame.BorderSizePixel = 2
+mainFrame.BorderColor3 = Color3.fromRGB(212, 175, 55) -- กรอบสีทอง
+mainFrame.Active = true
+mainFrame.Draggable = true -- สามารถลาก UI เคลื่อนย้ายได้
+mainFrame.Parent = screenGui
+
+-- หัวข้อ UI
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundColor3 = Color3.fromRGB(15, 30, 20)
+title.Text = "Loki Dress Up"
+title.TextColor3 = Color3.fromRGB(212, 175, 55)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 18
+title.Parent = mainFrame
+
+-- ฟังก์ชันสำหรับใส่ Accessory ให้ตัวละคร
+local function equipAccessory(assetId)
+	local character = player.Character or player.CharacterAdded:Wait()
+	if not character then return end
+	
+	task.spawn(function()
+		local success, model = pcall(function()
+			return InsertService:LoadAsset(assetId)
+		end)
+		
+		if success and model then
+			local accessory = model:FindFirstChildOfClass("Accessory")
+			if accessory then
+				local humanoid = character:FindFirstChildOfClass("Humanoid")
+				if humanoid then
+					humanoid:AddAccessory(accessory)
+				end
+			end
+		else
+			warn("ไม่สามารถโหลด Asset ID: " .. tostring(assetId) .. " ได้")
+		end
+	end)
+end
+
+-- 4. ปุ่มใส่ "มงกุฎ Loki"
+local crownBtn = Instance.new("TextButton")
+crownBtn.Size = UDim2.new(0.85, 0, 0, 32)
+crownBtn.Position = UDim2.new(0.075, 0, 0.20, 0)
+crownBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
+crownBtn.Text = "ใส่มงกุฎ Loki"
+crownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+crownBtn.Font = Enum.Font.SourceSans
+crownBtn.TextSize = 14
+crownBtn.Parent = mainFrame
+
+crownBtn.MouseButton1Click:Connect(function()
+	equipAccessory(LOKI_CROWN_ID)
+end)
+
+-- 5. ปุ่มใส่ "ผ้าคลุม Loki"
+local capeBtn = Instance.new("TextButton")
+capeBtn.Size = UDim2.new(0.85, 0, 0, 32)
+capeBtn.Position = UDim2.new(0.075, 0, 0.38, 0)
+capeBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
+capeBtn.Text = "ใส่ผ้าคลุม Loki"
+capeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+capeBtn.Font = Enum.Font.SourceSans
+capeBtn.TextSize = 14
+capeBtn.Parent = mainFrame
+
+capeBtn.MouseButton1Click:Connect(function()
+	equipAccessory(LOKI_CAPE_ID)
+end)
+
+-- 6. ปุ่มใส่ "ทั้งหมดพร้อมกัน" (มงกุฎ + ผ้าคลุม)
+local allBtn = Instance.new("TextButton")
+allBtn.Size = UDim2.new(0.85, 0, 0, 32)
+allBtn.Position = UDim2.new(0.075, 0, 0.56, 0)
+allBtn.BackgroundColor3 = Color3.fromRGB(180, 140, 30) -- ปุ่มสีทอง
+allBtn.Text = "ใส่เซ็ต Loki ทั้งหมด"
+allBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+allBtn.Font = Enum.Font.SourceSansBold
+allBtn.TextSize = 14
+allBtn.Parent = mainFrame
+
+allBtn.MouseButton1Click:Connect(function()
+	equipAccessory(LOKI_CROWN_ID)
+	equipAccessory(LOKI_CAPE_ID)
+end)
+
+-- 7. ปุ่มถอดของแต่งกายออกทั้งหมด
+local removeBtn = Instance.new("TextButton")
+removeBtn.Size = UDim2.new(0.85, 0, 0, 28)
+removeBtn.Position = UDim2.new(0.075, 0, 0.80, 0)
+removeBtn.BackgroundColor3 = Color3.fromRGB(120, 35, 35)
+removeBtn.Text = "ถอดของแต่งตัวออก"
+removeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+removeBtn.Font = Enum.Font.SourceSans
+removeBtn.TextSize = 12
+removeBtn.Parent = mainFrame
+
+removeBtn.MouseButton1Click:Connect(function()
+	local character = player.Character
+	if character then
+		for _, item in pairs(character:GetChildren()) do
+			if item:IsA("Accessory") then
+				item:Destroy()
+			end
+		end
+	end
+end)
