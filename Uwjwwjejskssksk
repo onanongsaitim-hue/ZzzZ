@@ -1,0 +1,45 @@
+-- [[ Loki Dress Up - Server Script ]]
+-- วางไว้ใน ServerScriptService
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+-- ดึง RemoteEvent ที่เราสร้างไว้
+local remoteEvent = ReplicatedStorage:WaitForChild("LokiDressUpEvent")
+
+remoteEvent.OnServerEvent:Connect(function(player, action, assetId)
+	local character = player.Character
+	if not character then return end
+	
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+
+	if action == "equip" and assetId then
+		-- ดึงข้อมูลเครื่องแต่งกายของตัวละครเดิม
+		local currentDescription = humanoid:GetAppliedDescription()
+		
+		-- ตรวจสอบและดึง Asset มาใส่ตามประเภท
+		local success, err = pcall(function()
+			local assetDescription = game:GetService("MarketplaceService"):GetProductInfo(assetId)
+			
+			-- ใส่ Accessory
+			local currentHatIds = currentDescription.HatAccessory ~= "" and string.split(currentDescription.HatAccessory, ",") or {}
+			table.insert(currentHatIds, tostring(assetId))
+			currentDescription.HatAccessory = table.concat(currentHatIds, ",")
+			
+			humanoid:ApplyDescription(currentDescription)
+		end)
+		
+		if not success then
+			warn("ไม่สามารถใส่ ID " .. tostring(assetId) .. " ได้: " .. tostring(err))
+		end
+
+	elseif action == "remove" then
+		-- ถอด Accessories ออกทั้งหมด
+		for _, item in pairs(character:GetChildren()) do
+			if item:IsA("Accessory") then
+				item:Destroy()
+			end
+		end
+	end
+end)
