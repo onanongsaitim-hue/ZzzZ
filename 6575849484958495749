@@ -1,0 +1,1191 @@
+-- [[ ZzzZ Ultimate Hub - Golden Boombox & Custom Hitbox Edition ]] --
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+---------------------------------------------------------
+-- CONFIG & KEY
+---------------------------------------------------------
+local CORRECT_KEY = "zzz2026"
+
+---------------------------------------------------------
+-- STATE VARIABLES
+---------------------------------------------------------
+local State = {
+    -- Combat & Hitbox (หมวดหมู่ต่อสู้)
+    HeadHitboxEnabled = false,
+    HeadSize = 2,
+    BodyHitboxEnabled = false,
+    BodySize = 2,
+    HitboxColor = Color3.fromRGB(255, 0, 0),
+    HitboxOpacity = 100,
+    
+    -- Music Player & DJ Features (หมวดหมู่เพลง & ลำโพงสีทอง)
+    CurrentSoundId = "",
+    MusicVolume = 50,
+    PlaybackSpeed = 1.0,
+    BoomboxSpawned = false,
+    
+    -- Visuals Category (โหมดการมองเห็น)
+    CrosshairEnabled = false,
+    CrosshairSize = 6,
+    CrosshairOffsetY = 0,
+    ESP_Wallhack = false,
+    AimbotEnabled = false,
+    AimbotSmoothness = 0.05,
+    
+    -- Player Hack
+    SpeedHackEnabled = false,
+    WalkSpeedValue = 16,
+    NoclipEnabled = false,
+    InfiniteJumpEnabled = false,
+    
+    -- Vehicle Effects
+    BackLEDEnabled = false,
+    HaloCrownEnabled = false,
+    LegWheelLEDEnabled = false,
+    LegWheelSpeed = 5,
+    
+    -- World
+    FullbrightEnabled = false,
+    TimeOfDay = 12
+}
+
+---------------------------------------------------------
+-- AUDIO OBJECTS
+---------------------------------------------------------
+local BGMusic = Instance.new("Sound")
+BGMusic.Name = "ZzzZ_CustomBGMusic"
+BGMusic.Looped = true
+BGMusic.Volume = State.MusicVolume / 100
+BGMusic.PlaybackSpeed = State.PlaybackSpeed
+BGMusic.Parent = SoundService
+
+-- IDs สำหรับซาวด์เอฟเฟกต์ DJ สไตล์แร็ป/สายย่อ (อัปเดต ID ตรงสไตล์ เล่นติดแน่นอน)
+local DJ_SOUNDS = {
+    DJ = "rbxassetid://130785805",        -- เสียงพูด "DJ" สไตล์แร็ป/ฮิปฮอป
+    COMON = "rbxassetid://1848354536",    -- เสียง "Come On!" สไตล์ดีเจเปิดตัวเข้าม่าน
+    BABY = "rbxassetid://1837869812"      -- เสียง "Baby!" สไตล์สายย่อ
+}
+
+---------------------------------------------------------
+-- BROADCAST TO SERVER
+---------------------------------------------------------
+local function BroadcastAudioToServer(soundIdRaw)
+    task.spawn(function()
+        local foundRemote = nil
+        if LocalPlayer.Character then
+            local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+            if tool then
+                foundRemote = tool:FindFirstChildOfClass("RemoteEvent") or tool:FindFirstChild("RemoteFunction")
+            end
+        end
+        if not foundRemote then
+            for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+                if v:IsA("RemoteEvent") and (v.Name:lower():find("boombox") or v.Name:lower():find("audio") or v.Name:lower():find("sound")) then
+                    foundRemote = v
+                    break
+                end
+            end
+        end
+
+        if foundRemote and foundRemote:IsA("RemoteEvent") then
+            pcall(function()
+                foundRemote:FireServer(soundIdRaw)
+                foundRemote:FireServer("Play", soundIdRaw)
+            end)
+        end
+    end)
+end
+
+---------------------------------------------------------
+-- SAFE GUI PARENT (PlayerGui)
+---------------------------------------------------------
+local ParentGui = LocalPlayer:WaitForChild("PlayerGui")
+if ParentGui:FindFirstChild("ZzzZ_UltimateHub") then
+    ParentGui:FindFirstChild("ZzzZ_UltimateHub"):Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ZzzZ_UltimateHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = ParentGui
+
+---------------------------------------------------------
+-- WHITE CROSSHAIR
+---------------------------------------------------------
+local CrosshairDot = Instance.new("Frame")
+CrosshairDot.Name = "CrosshairDot"
+CrosshairDot.AnchorPoint = Vector2.new(0.5, 0.5)
+CrosshairDot.Position = UDim2.new(0.5, 0, 0.5, 0)
+CrosshairDot.Size = UDim2.new(0, State.CrosshairSize, 0, State.CrosshairSize)
+CrosshairDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+CrosshairDot.BorderSizePixel = 0
+CrosshairDot.Visible = false
+CrosshairDot.Parent = ScreenGui
+
+local DotCorner = Instance.new("UICorner")
+DotCorner.CornerRadius = UDim.new(1, 0)
+DotCorner.Parent = CrosshairDot
+
+local DotStroke = Instance.new("UIStroke")
+DotStroke.Thickness = 1
+DotStroke.Color = Color3.fromRGB(0, 0, 0)
+DotStroke.Parent = CrosshairDot
+
+---------------------------------------------------------
+-- TOGGLE UI BUTTON
+---------------------------------------------------------
+local ToggleUIRainbowBtn = Instance.new("TextButton")
+ToggleUIRainbowBtn.Name = "ToggleUIRainbowBtn"
+ToggleUIRainbowBtn.Size = UDim2.new(0, 120, 0, 35)
+ToggleUIRainbowBtn.Position = UDim2.new(0.02, 0, 0.1, 0)
+ToggleUIRainbowBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+ToggleUIRainbowBtn.Text = "⚡ ZzzZ UI"
+ToggleUIRainbowBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleUIRainbowBtn.Font = Enum.Font.SourceSansBold
+ToggleUIRainbowBtn.TextSize = 14
+ToggleUIRainbowBtn.Visible = false
+ToggleUIRainbowBtn.Active = true
+ToggleUIRainbowBtn.Draggable = true
+ToggleUIRainbowBtn.Parent = ScreenGui
+
+local ToggleBtnCorner = Instance.new("UICorner")
+ToggleBtnCorner.CornerRadius = UDim.new(0, 8)
+ToggleBtnCorner.Parent = ToggleUIRainbowBtn
+
+local ToggleBtnStroke = Instance.new("UIStroke")
+ToggleBtnStroke.Thickness = 2
+ToggleBtnStroke.Parent = ToggleUIRainbowBtn
+
+---------------------------------------------------------
+-- KEY SYSTEM
+---------------------------------------------------------
+local KeyFrame = Instance.new("Frame")
+KeyFrame.Name = "KeyFrame"
+KeyFrame.Size = UDim2.new(0, 350, 0, 200)
+KeyFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
+KeyFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+KeyFrame.BorderSizePixel = 0
+KeyFrame.Parent = ScreenGui
+
+local KeyCorner = Instance.new("UICorner")
+KeyCorner.CornerRadius = UDim.new(0, 10)
+KeyCorner.Parent = KeyFrame
+
+local KeyStroke = Instance.new("UIStroke")
+KeyStroke.Thickness = 2
+KeyStroke.Color = Color3.fromRGB(0, 170, 255)
+KeyStroke.Parent = KeyFrame
+
+local KeyTitle = Instance.new("TextLabel")
+KeyTitle.Size = UDim2.new(1, 0, 0, 40)
+KeyTitle.BackgroundTransparency = 1
+KeyTitle.Text = "🔑 ZzzZ Key System"
+KeyTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyTitle.TextSize = 18
+KeyTitle.Font = Enum.Font.SourceSansBold
+KeyTitle.Parent = KeyFrame
+
+local KeyInput = Instance.new("TextBox")
+KeyInput.Size = UDim2.new(0.8, 0, 0, 40)
+KeyInput.Position = UDim2.new(0.1, 0, 0.35, 0)
+KeyInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+KeyInput.Text = ""
+KeyInput.PlaceholderText = "Enter Key Here..."
+KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyInput.Font = Enum.Font.SourceSans
+KeyInput.TextSize = 16
+KeyInput.Parent = KeyFrame
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 6)
+InputCorner.Parent = KeyInput
+
+local SubmitBtn = Instance.new("TextButton")
+SubmitBtn.Size = UDim2.new(0.8, 0, 0, 35)
+SubmitBtn.Position = UDim2.new(0.1, 0, 0.65, 0)
+SubmitBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+SubmitBtn.Text = "SUBMIT KEY"
+SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SubmitBtn.Font = Enum.Font.SourceSansBold
+SubmitBtn.TextSize = 16
+SubmitBtn.Parent = KeyFrame
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = SubmitBtn
+
+---------------------------------------------------------
+-- MAIN HUB WINDOW
+---------------------------------------------------------
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 560, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -280, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 3
+MainStroke.Parent = MainFrame
+
+task.spawn(function()
+    local hue = 0
+    while task.wait(0.02) do
+        hue = (hue + 0.01) % 1
+        local color = Color3.fromHSV(hue, 0.8, 1)
+        MainStroke.Color = color
+        ToggleBtnStroke.Color = color
+    end
+end)
+
+ToggleUIRainbowBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 140, 1, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+local SideCorner = Instance.new("UICorner")
+SideCorner.CornerRadius = UDim.new(0, 12)
+SideCorner.Parent = Sidebar
+
+local SideLayout = Instance.new("UIListLayout")
+SideLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SideLayout.Padding = UDim.new(0, 5)
+SideLayout.Parent = Sidebar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 45)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "⚡ ZzzZ HUB"
+TitleLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextSize = 18
+TitleLabel.Parent = Sidebar
+
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, -150, 1, -10)
+ContentFrame.Position = UDim2.new(0, 145, 0, 5)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+---------------------------------------------------------
+-- UI BUILDERS
+---------------------------------------------------------
+local Tabs = {}
+local TabButtons = {}
+
+local function CreateTab(tabName)
+    local TabButton = Instance.new("TextButton")
+    TabButton.Size = UDim2.new(0.9, 0, 0, 32)
+    TabButton.Position = UDim2.new(0.05, 0, 0, 0)
+    TabButton.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    TabButton.Text = tabName
+    TabButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TabButton.Font = Enum.Font.SourceSans
+    TabButton.TextSize = 12
+    TabButton.Parent = Sidebar
+
+    local TBtnCorner = Instance.new("UICorner")
+    TBtnCorner.CornerRadius = UDim.new(0, 6)
+    TBtnCorner.Parent = TabButton
+
+    local TabPage = Instance.new("ScrollingFrame")
+    TabPage.Size = UDim2.new(1, 0, 1, 0)
+    TabPage.BackgroundTransparency = 1
+    TabPage.BorderSizePixel = 0
+    TabPage.ScrollBarThickness = 4
+    TabPage.Visible = false
+    TabPage.Parent = ContentFrame
+
+    local PageLayout = Instance.new("UIListLayout")
+    PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    PageLayout.Padding = UDim.new(0, 6)
+    PageLayout.Parent = TabPage
+
+    TabButton.MouseButton1Click:Connect(function()
+        for _, page in pairs(Tabs) do page.Visible = false end
+        for _, btn in pairs(TabButtons) do 
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40) 
+            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+        TabPage.Visible = true
+        TabButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+
+    Tabs[tabName] = TabPage
+    TabButtons[tabName] = TabButton
+    return TabPage
+end
+
+local function CreateToggle(parent, text, default, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0.95, 0, 0, 35)
+    Frame.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+    Frame.Parent = parent
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = Frame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0.7, 0, 1, 0)
+    Label.Position = UDim2.new(0.05, 0, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.Font = Enum.Font.SourceSans
+    Label.TextSize = 13
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Size = UDim2.new(0.2, 0, 0.7, 0)
+    ToggleBtn.Position = UDim2.new(0.75, 0, 0.15, 0)
+    ToggleBtn.BackgroundColor3 = default and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(80, 80, 90)
+    ToggleBtn.Text = default and "ON" or "OFF"
+    ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleBtn.Font = Enum.Font.SourceSansBold
+    ToggleBtn.TextSize = 12
+    ToggleBtn.Parent = Frame
+
+    local TCorner = Instance.new("UICorner")
+    TCorner.CornerRadius = UDim.new(0, 4)
+    TCorner.Parent = ToggleBtn
+
+    local state = default
+    ToggleBtn.MouseButton1Click:Connect(function()
+        state = not state
+        ToggleBtn.Text = state and "ON" or "OFF"
+        ToggleBtn.BackgroundColor3 = state and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(80, 80, 90)
+        callback(state)
+    end)
+end
+
+local function CreateSlider(parent, text, min, max, default, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0.95, 0, 0, 45)
+    Frame.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+    Frame.Parent = parent
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = Frame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -10, 0, 20)
+    Label.Position = UDim2.new(0, 10, 0, 2)
+    Label.BackgroundTransparency = 1
+    Label.Text = text .. ": " .. tostring(default)
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.Font = Enum.Font.SourceSans
+    Label.TextSize = 13
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local SliderBar = Instance.new("TextButton")
+    SliderBar.Size = UDim2.new(0.9, 0, 0, 10)
+    SliderBar.Position = UDim2.new(0.05, 0, 0.65, 0)
+    SliderBar.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    SliderBar.Text = ""
+    SliderBar.Parent = Frame
+
+    local SBarCorner = Instance.new("UICorner")
+    SBarCorner.CornerRadius = UDim.new(1, 0)
+    SBarCorner.Parent = SliderBar
+
+    local Fill = Instance.new("Frame")
+    Fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    Fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    Fill.BorderSizePixel = 0
+    Fill.Parent = SliderBar
+
+    local FillCorner = Instance.new("UICorner")
+    FillCorner.CornerRadius = UDim.new(1, 0)
+    FillCorner.Parent = Fill
+
+    local dragging = false
+    local function update(input)
+        local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+        Fill.Size = UDim2.new(pos, 0, 1, 0)
+        local val = min + (max - min) * pos
+        if max - min >= 10 then val = math.floor(val) else val = math.floor(val * 100) / 100 end
+        Label.Text = text .. ": " .. tostring(val)
+        callback(val)
+    end
+
+    SliderBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            update(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+end
+
+local function CreateColorPicker(parent, text, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0.95, 0, 0, 55)
+    Frame.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+    Frame.Parent = parent
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = Frame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -10, 0, 20)
+    Label.Position = UDim2.new(0, 10, 0, 3)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.Font = Enum.Font.SourceSans
+    Label.TextSize = 13
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local Colors = {
+        Color3.fromRGB(255, 0, 0),
+        Color3.fromRGB(0, 255, 100),
+        Color3.fromRGB(0, 150, 255),
+        Color3.fromRGB(255, 200, 0),
+        Color3.fromRGB(255, 0, 200),
+        Color3.fromRGB(255, 255, 255)
+    }
+
+    local ButtonContainer = Instance.new("Frame")
+    ButtonContainer.Size = UDim2.new(0.9, 0, 0, 22)
+    ButtonContainer.Position = UDim2.new(0.05, 0, 0.5, 0)
+    ButtonContainer.BackgroundTransparency = 1
+    ButtonContainer.Parent = Frame
+
+    local ContainerLayout = Instance.new("UIListLayout")
+    ContainerLayout.FillDirection = Enum.FillDirection.Horizontal
+    ContainerLayout.Padding = UDim.new(0, 8)
+    ContainerLayout.Parent = ButtonContainer
+
+    for _, color in ipairs(Colors) do
+        local cBtn = Instance.new("TextButton")
+        cBtn.Size = UDim2.new(0, 25, 0, 22)
+        cBtn.BackgroundColor3 = color
+        cBtn.Text = ""
+        cBtn.Parent = ButtonContainer
+
+        local cCorner = Instance.new("UICorner")
+        cCorner.CornerRadius = UDim.new(0, 4)
+        cCorner.Parent = cBtn
+
+        cBtn.MouseButton1Click:Connect(function()
+            callback(color)
+        end)
+    end
+end
+
+---------------------------------------------------------
+-- CREATE TABS
+---------------------------------------------------------
+local CombatTab = CreateTab("⚔️ หมวดหมู่ต่อสู้")
+local MusicTab = CreateTab("🎵 หมวดหมู่เพลง")
+local EspTab = CreateTab("👁️ โหมดการมองเห็น")
+local PlayerTab = CreateTab("🏃 Player Hack")
+local VehicleTab = CreateTab("🚗 Vehicle Effects")
+local WorldTab = CreateTab("🌍 World Settings")
+
+---------------------------------------------------------
+-- CONTROLS
+---------------------------------------------------------
+-- ⚔️ 1. หมวดหมู่ต่อสู้
+CreateToggle(CombatTab, "🎯 Head Hitbox (เปิดขยายหัว)", false, function(val) State.HeadHitboxEnabled = val end)
+CreateSlider(CombatTab, "📏 Head Size (ขนาดหัว)", 2, 20, 2, function(val) State.HeadSize = val end)
+
+CreateToggle(CombatTab, "🧍 Body Hitbox (เปิดขยายตัว)", false, function(val) State.BodyHitboxEnabled = val end)
+CreateSlider(CombatTab, "📏 Body Size (ขนาดตัว)", 2, 20, 2, function(val) State.BodySize = val end)
+
+CreateColorPicker(CombatTab, "🎨 เลือกสี Hitbox (Hitbox Color)", function(color)
+    State.HitboxColor = color
+end)
+
+CreateSlider(CombatTab, "🔆 ความเข้มสี Hitbox (0=โปร่งใส, 100=เข้มสุด)", 0, 100, 100, function(val)
+    State.HitboxOpacity = val
+end)
+
+-- 🎵 2. หมวดหมู่เพลง & DJ Studio
+local MusicFrame = Instance.new("Frame")
+MusicFrame.Size = UDim2.new(0.95, 0, 0, 150)
+MusicFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+MusicFrame.Parent = MusicTab
+
+local MFrameCorner = Instance.new("UICorner")
+MFrameCorner.CornerRadius = UDim.new(0, 6)
+MFrameCorner.Parent = MusicFrame
+
+local MusicLabel = Instance.new("TextLabel")
+MusicLabel.Size = UDim2.new(1, -10, 0, 20)
+MusicLabel.Position = UDim2.new(0, 10, 0, 5)
+MusicLabel.BackgroundTransparency = 1
+MusicLabel.Text = "🆔 ใส่ ID เพลง Roblox (เช่น 1838634830):"
+MusicLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+MusicLabel.Font = Enum.Font.SourceSans
+MusicLabel.TextSize = 13
+MusicLabel.TextXAlignment = Enum.TextXAlignment.Left
+MusicLabel.Parent = MusicFrame
+
+local AudioInput = Instance.new("TextBox")
+AudioInput.Size = UDim2.new(0.9, 0, 0, 30)
+AudioInput.Position = UDim2.new(0.05, 0, 0.2, 0)
+AudioInput.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+AudioInput.Text = ""
+AudioInput.PlaceholderText = "วาง ID เพลงที่นี่..."
+AudioInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+AudioInput.Font = Enum.Font.SourceSans
+AudioInput.TextSize = 14
+AudioInput.Parent = MusicFrame
+
+local AudioInputCorner = Instance.new("UICorner")
+AudioInputCorner.CornerRadius = UDim.new(0, 4)
+AudioInputCorner.Parent = AudioInput
+
+local SpawnBoomboxBtn = Instance.new("TextButton")
+SpawnBoomboxBtn.Size = UDim2.new(0.9, 0, 0, 28)
+SpawnBoomboxBtn.Position = UDim2.new(0.05, 0, 0.45, 0)
+SpawnBoomboxBtn.BackgroundColor3 = Color3.fromRGB(220, 170, 0)
+SpawnBoomboxBtn.Text = "🔊 เสกลำโพงสีทอง (Spawn Golden Boombox)"
+SpawnBoomboxBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+SpawnBoomboxBtn.Font = Enum.Font.SourceSansBold
+SpawnBoomboxBtn.TextSize = 13
+SpawnBoomboxBtn.Parent = MusicFrame
+
+local SBBCorner = Instance.new("UICorner")
+SBBCorner.CornerRadius = UDim.new(0, 4)
+SBBCorner.Parent = SpawnBoomboxBtn
+
+local PlayAudioBtn = Instance.new("TextButton")
+PlayAudioBtn.Size = UDim2.new(0.28, 0, 0, 30)
+PlayAudioBtn.Position = UDim2.new(0.05, 0, 0.72, 0)
+PlayAudioBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+PlayAudioBtn.Text = "▶️ เล่น"
+PlayAudioBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayAudioBtn.Font = Enum.Font.SourceSansBold
+PlayAudioBtn.TextSize = 13
+PlayAudioBtn.Parent = MusicFrame
+
+local PBtnCorner = Instance.new("UICorner")
+PBtnCorner.CornerRadius = UDim.new(0, 4)
+PBtnCorner.Parent = PlayAudioBtn
+
+local PauseAudioBtn = Instance.new("TextButton")
+PauseAudioBtn.Size = UDim2.new(0.28, 0, 0, 30)
+PauseAudioBtn.Position = UDim2.new(0.36, 0, 0.72, 0)
+PauseAudioBtn.BackgroundColor3 = Color3.fromRGB(220, 140, 0)
+PauseAudioBtn.Text = "⏸ หยุดชั่วคราว"
+PauseAudioBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PauseAudioBtn.Font = Enum.Font.SourceSansBold
+PauseAudioBtn.TextSize = 12
+PauseAudioBtn.Parent = MusicFrame
+
+local PauseBtnCorner = Instance.new("UICorner")
+PauseBtnCorner.CornerRadius = UDim.new(0, 4)
+PauseBtnCorner.Parent = PauseAudioBtn
+
+local StopAudioBtn = Instance.new("TextButton")
+StopAudioBtn.Size = UDim2.new(0.28, 0, 0, 30)
+StopAudioBtn.Position = UDim2.new(0.67, 0, 0.72, 0)
+StopAudioBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+StopAudioBtn.Text = "⏹️ ปิดเพลง"
+StopAudioBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopAudioBtn.Font = Enum.Font.SourceSansBold
+StopAudioBtn.TextSize = 13
+StopAudioBtn.Parent = MusicFrame
+
+local StopBtnCorner = Instance.new("UICorner")
+StopBtnCorner.CornerRadius = UDim.new(0, 4)
+StopBtnCorner.Parent = StopAudioBtn
+
+local function SpawnGoldenBoombox()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local oldBoombox = workspace:FindFirstChild("ZzzZ_GoldenBoombox_" .. LocalPlayer.Name)
+    if oldBoombox then oldBoombox:Destroy() end
+
+    local hrp = LocalPlayer.Character.HumanoidRootPart
+    local spawnPos = hrp.Position + (hrp.CFrame.LookVector * 4)
+
+    local boomboxModel = Instance.new("Model")
+    boomboxModel.Name = "ZzzZ_GoldenBoombox_" .. LocalPlayer.Name
+
+    local mainBody = Instance.new("Part")
+    mainBody.Name = "MainBody"
+    mainBody.Size = Vector3.new(3, 1.8, 1.2)
+    mainBody.CFrame = CFrame.new(spawnPos) * CFrame.Angles(0, math.rad(hrp.Orientation.Y), 0)
+    mainBody.Color = Color3.fromRGB(255, 215, 0)
+    mainBody.Material = Enum.Material.SmoothPlastic
+    mainBody.Anchored = true
+    mainBody.CanCollide = true
+    mainBody.Parent = boomboxModel
+
+    for _, side in ipairs({-1, 1}) do
+        local speaker = Instance.new("Part")
+        speaker.Size = Vector3.new(0.9, 0.9, 0.1)
+        speaker.CFrame = mainBody.CFrame * CFrame.new(side * 0.9, 0, 0.56)
+        speaker.Color = Color3.fromRGB(30, 30, 30)
+        speaker.Material = Enum.Material.DiamondPlate
+        speaker.Anchored = true
+        speaker.CanCollide = false
+        speaker.Parent = boomboxModel
+
+        local light = Instance.new("PointLight")
+        light.Name = "SpeakerLight"
+        light.Color = Color3.fromRGB(255, 215, 0)
+        light.Range = 8
+        light.Brightness = 3
+        light.Parent = speaker
+    end
+
+    local handle = Instance.new("Part")
+    handle.Size = Vector3.new(2, 0.2, 0.2)
+    handle.CFrame = mainBody.CFrame * CFrame.new(0, 1.1, 0)
+    handle.Color = Color3.fromRGB(200, 160, 0)
+    handle.Material = Enum.Material.Metal
+    handle.Anchored = true
+    handle.CanCollide = false
+    handle.Parent = boomboxModel
+
+    boomboxModel.Parent = workspace
+    State.BoomboxSpawned = true
+end
+
+SpawnBoomboxBtn.MouseButton1Click:Connect(function()
+    SpawnGoldenBoombox()
+end)
+
+PlayAudioBtn.MouseButton1Click:Connect(function()
+    local rawId = AudioInput.Text:gsub("%D", "")
+    if rawId ~= "" then
+        State.CurrentSoundId = "rbxassetid://" .. rawId
+        BGMusic.SoundId = State.CurrentSoundId
+        BGMusic:Play()
+
+        BroadcastAudioToServer(rawId)
+
+        if not workspace:FindFirstChild("ZzzZ_GoldenBoombox_" .. LocalPlayer.Name) then
+            SpawnGoldenBoombox()
+        end
+    end
+end)
+
+PauseAudioBtn.MouseButton1Click:Connect(function()
+    if BGMusic.IsPlaying then
+        BGMusic:Pause()
+    else
+        BGMusic:Resume()
+    end
+end)
+
+StopAudioBtn.MouseButton1Click:Connect(function()
+    BGMusic:Stop()
+end)
+
+CreateSlider(MusicTab, "🔊 ระดับเสียงเพลง (Volume)", 0, 100, 50, function(val)
+    State.MusicVolume = val
+    BGMusic.Volume = val / 100
+end)
+
+CreateSlider(MusicTab, "⚡ ปรับความเร็วเพลง DJ (0.5x - 2.0x)", 0.5, 2.0, 1.0, function(val)
+    State.PlaybackSpeed = val
+    BGMusic.PlaybackSpeed = val
+end)
+
+-- 🎧 DJ Soundboard System (ปรับแต่งเสียงเอฟเฟกต์เฉพาะจุด)
+local DJFrame = Instance.new("Frame")
+DJFrame.Size = UDim2.new(0.95, 0, 0, 75)
+DJFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+DJFrame.Parent = MusicTab
+
+local DJCorner = Instance.new("UICorner")
+DJCorner.CornerRadius = UDim.new(0, 6)
+DJCorner.Parent = DJFrame
+
+local DJTitle = Instance.new("TextLabel")
+DJTitle.Size = UDim2.new(1, -10, 0, 20)
+DJTitle.Position = UDim2.new(0, 10, 0, 5)
+DJTitle.BackgroundTransparency = 1
+DJTitle.Text = "🎧 DJ Soundboard (เอฟเฟกต์ดีเจ):"
+DJTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
+DJTitle.Font = Enum.Font.SourceSansBold
+DJTitle.TextSize = 13
+DJTitle.TextXAlignment = Enum.TextXAlignment.Left
+DJTitle.Parent = DJFrame
+
+local function PlayDJSound(soundId)
+    task.spawn(function()
+        local sound = Instance.new("Sound")
+        sound.SoundId = soundId
+        sound.Volume = 2.5
+        sound.Parent = SoundService
+        
+        -- เล่นเสียงฝั่ง Local ทันทีโดยไม่ติดขัด
+        SoundService:PlayLocalSound(sound)
+        
+        sound.Ended:Connect(function()
+            sound:Destroy()
+        end)
+    end)
+end
+
+local function CreateDJSoundButton(text, pos, color, soundId)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.28, 0, 0, 32)
+    btn.Position = pos
+    btn.BackgroundColor3 = color
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 13
+    btn.Parent = DJFrame
+
+    local bCorner = Instance.new("UICorner")
+    bCorner.CornerRadius = UDim.new(0, 4)
+    bCorner.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        PlayDJSound(soundId)
+    end)
+end
+
+CreateDJSoundButton("🎧 DJ!", UDim2.new(0.05, 0, 0.42, 0), Color3.fromRGB(150, 50, 220), DJ_SOUNDS.DJ)
+CreateDJSoundButton("🔥 COME ON!", UDim2.new(0.36, 0, 0.42, 0), Color3.fromRGB(220, 100, 0), DJ_SOUNDS.COMON)
+CreateDJSoundButton("👶 BABY!", UDim2.new(0.67, 0, 0.42, 0), Color3.fromRGB(220, 0, 100), DJ_SOUNDS.BABY)
+
+-- 👁️ 3. โหมดการมองเห็น
+CreateToggle(EspTab, "⚪ จุดช่วยเล็งสีขาว (Crosshair)", false, function(val) 
+    State.CrosshairEnabled = val 
+    CrosshairDot.Visible = val
+end)
+CreateSlider(EspTab, "📏 ปรับขนาดจุดเล็ง (Size)", 2, 20, 6, function(val) 
+    State.CrosshairSize = val 
+    CrosshairDot.Size = UDim2.new(0, val, 0, val)
+end)
+CreateSlider(EspTab, "↕️ ปรับเลื่อนจุด ขึ้น-ลง (Y-Offset)", -150, 150, 0, function(val) 
+    State.CrosshairOffsetY = val 
+    CrosshairDot.Position = UDim2.new(0.5, 0, 0.5, val)
+end)
+
+CreateToggle(EspTab, "🧱 มองเห็นศัตรูทะลุบล็อก (Wallhack)", false, function(val) State.ESP_Wallhack = val end)
+
+CreateToggle(EspTab, "👁️ มองตาม/ล็อคหน้าจอศัตรู (Target Lock)", false, function(val) State.AimbotEnabled = val end)
+CreateSlider(EspTab, "✨ ปรับความสมูทล็อคเป้า (Smoothness)", 1, 10, 2, function(val) 
+    State.AimbotSmoothness = val / 100
+end)
+
+-- 🏃 4. Player
+CreateToggle(PlayerTab, "⚡ Speed Hack", false, function(val) 
+    State.SpeedHackEnabled = val 
+    if not val and LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = 16 end
+    end
+end)
+CreateSlider(PlayerTab, "🏃 WalkSpeed", 16, 200, 16, function(val) State.WalkSpeedValue = val end)
+CreateToggle(PlayerTab, "🧱 Noclip (วิ่งทะลุกำแพง)", false, function(val) State.NoclipEnabled = val end)
+CreateToggle(PlayerTab, "🕊️ Infinite Jump (กระโดดไม่จำกัด)", false, function(val) State.InfiniteJumpEnabled = val end)
+
+-- 🚗 5. Vehicle & Effects
+CreateToggle(VehicleTab, "🐍 บล็อกตั้ง หมุนเกลียวเลื้อย + ลำแสงพุ่งหลัง", false, function(val) State.BackLEDEnabled = val end)
+CreateToggle(VehicleTab, "👑 มงกุฎพระราชาประดับไฟ (King's Crown)", false, function(val) State.HaloCrownEnabled = val end)
+CreateToggle(VehicleTab, "⚙️ วงล้อไฟ LED ข้างเท้าทั้ง 2 ข้าง (Dual Wheels)", false, function(val) State.LegWheelLEDEnabled = val end)
+CreateSlider(VehicleTab, "⚡ Wheel Spin Speed (ความเร็วหมุนล้อเท้า)", 1, 20, 5, function(val) State.LegWheelSpeed = val end)
+
+-- 🌍 6. World
+CreateToggle(WorldTab, "💡 Fullbright (สว่างตลอดเวลา)", false, function(val) State.FullbrightEnabled = val end)
+CreateSlider(WorldTab, "☀️️ Time Of Day (เวลาในเกม)", 0, 24, 12, function(val) State.TimeOfDay = val end)
+
+---------------------------------------------------------
+-- HELPER: GET CLOSEST ENEMY
+---------------------------------------------------------
+local function GetClosestTarget()
+    local closest = nil
+    local shortestDist = math.huge
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+            local head = plr.Character.Head
+            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+            if onScreen then
+                local mousePos = UserInputService:GetMouseLocation()
+                local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                if dist < shortestDist then
+                    shortestDist = dist
+                    closest = head
+                end
+            end
+        end
+    end
+    return closest
+end
+
+---------------------------------------------------------
+-- INFINITE JUMP EVENT
+---------------------------------------------------------
+UserInputService.JumpRequest:Connect(function()
+    if State.InfiniteJumpEnabled and LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+---------------------------------------------------------
+-- RENDER LOOP
+---------------------------------------------------------
+local orbitAngle = 0
+local wheelAngle = 0
+
+RunService.RenderStepped:Connect(function()
+    orbitAngle = (orbitAngle + 0.04) % (math.pi * 2)
+    wheelAngle = (wheelAngle + (0.02 * State.LegWheelSpeed)) % (math.pi * 2)
+
+    local calculatedTransparency = 1 - (State.HitboxOpacity / 100)
+
+    local boomboxModel = workspace:FindFirstChild("ZzzZ_GoldenBoombox_" .. LocalPlayer.Name)
+    if boomboxModel then
+        local mainBody = boomboxModel:FindFirstChild("MainBody")
+        if mainBody and BGMusic.IsPlaying then
+            local pulse = math.sin(tick() * (10 * State.PlaybackSpeed)) * 0.15
+            mainBody.Size = Vector3.new(3 + pulse, 1.8 + pulse, 1.2 + pulse)
+        end
+    end
+
+    if State.AimbotEnabled then
+        local targetHead = GetClosestTarget()
+        if targetHead then
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetHead.Position), State.AimbotSmoothness)
+        end
+    end
+
+    if State.NoclipEnabled and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            if plr.Character:FindFirstChild("Head") then
+                local head = plr.Character.Head
+                if State.HeadHitboxEnabled then
+                    head.Size = Vector3.new(State.HeadSize, State.HeadSize, State.HeadSize)
+                    head.Color = State.HitboxColor
+                    head.Material = Enum.Material.Neon
+                    head.Transparency = calculatedTransparency
+                    head.CanCollide = false
+                else
+                    head.Size = Vector3.new(1.2, 1.2, 1.2)
+                    head.Transparency = 0
+                end
+            end
+
+            if plr.Character:FindFirstChild("HumanoidRootPart") then
+                local hrp = plr.Character.HumanoidRootPart
+                if State.BodyHitboxEnabled then
+                    hrp.Size = Vector3.new(State.BodySize, State.BodySize, State.BodySize)
+                    hrp.Color = State.HitboxColor
+                    hrp.Material = Enum.Material.Neon
+                    hrp.Transparency = calculatedTransparency
+                    hrp.CanCollide = false
+                else
+                    hrp.Size = Vector3.new(2, 2, 1)
+                    hrp.Transparency = 1
+                end
+            end
+
+            local espHighlight = plr.Character:FindFirstChild("ZzzZ_ESP_Highlight")
+            if State.ESP_Wallhack then
+                if not espHighlight then
+                    espHighlight = Instance.new("Highlight")
+                    espHighlight.Name = "ZzzZ_ESP_Highlight"
+                    espHighlight.FillColor = Color3.fromRGB(255, 0, 80)
+                    espHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    espHighlight.FillTransparency = 0.3
+                    espHighlight.Parent = plr.Character
+                end
+            else
+                if espHighlight then espHighlight:Destroy() end
+            end
+        end
+    end
+
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if State.SpeedHackEnabled then
+            hum.WalkSpeed = State.WalkSpeedValue
+        end
+    end
+
+    if State.FullbrightEnabled then
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.Brightness = 2
+    end
+    Lighting.ClockTime = State.TimeOfDay
+
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local char = LocalPlayer.Character
+        local hrp = char.HumanoidRootPart
+        local head = char:FindFirstChild("Head")
+
+        local blocksFolder = workspace:FindFirstChild("ZzzZ_SpiralLED_" .. LocalPlayer.Name)
+        if State.BackLEDEnabled then
+            if not blocksFolder then
+                blocksFolder = Instance.new("Folder")
+                blocksFolder.Name = "ZzzZ_SpiralLED_" .. LocalPlayer.Name
+                blocksFolder.Parent = workspace
+
+                for i = 1, 12 do
+                    local block = Instance.new("Part")
+                    block.Name = "SpiralBlock_" .. i
+                    block.Size = Vector3.new(0.3, 0.3, 0.3)
+                    block.Material = Enum.Material.Neon
+                    block.Anchored = true
+                    block.CanCollide = false
+                    block.CanTouch = false
+                    block.CanQuery = false
+                    block.Parent = blocksFolder
+
+                    local light = Instance.new("PointLight")
+                    light.Name = "LEDLight"
+                    light.Range = 8
+                    light.Brightness = 4
+                    light.Parent = block
+
+                    local att0 = Instance.new("Attachment", block)
+                    att0.Position = Vector3.new(0, 0.2, 0)
+                    local att1 = Instance.new("Attachment", block)
+                    att1.Position = Vector3.new(0, -0.2, 0)
+
+                    local trail = Instance.new("Trail")
+                    trail.Name = "LightTrail"
+                    trail.Attachment0 = att0
+                    trail.Attachment1 = att1
+                    trail.Lifetime = 0.4
+                    trail.MinLength = 0.1
+                    trail.FaceCamera = true
+                    trail.LightEmission = 1
+                    trail.Transparency = NumberSequence.new({
+                        NumberSequenceKeypoint.new(0, 0),
+                        NumberSequenceKeypoint.new(1, 1)
+                    })
+                    trail.Parent = block
+                end
+            end
+
+            local backPos = hrp.Position - (hrp.CFrame.LookVector * 1.5)
+            local radius = 1.8
+
+            for i = 1, 12 do
+                local block = blocksFolder:FindFirstChild("SpiralBlock_" .. i)
+                if block then
+                    local stepAngle = orbitAngle + ((i / 12) * math.pi * 2)
+                    local offsetX = math.cos(stepAngle) * radius
+                    local offsetZ = math.sin(stepAngle) * radius
+                    local offsetY = ((i / 12) * 5) - 1.5
+
+                    block.CFrame = CFrame.new(backPos + Vector3.new(offsetX, offsetY, offsetZ))
+
+                    local hue = ((i / 12) + (orbitAngle / (math.pi * 2))) % 1
+                    local rainbowColor = Color3.fromHSV(hue, 0.95, 1)
+                    
+                    block.Color = rainbowColor
+                    if block:FindFirstChild("LEDLight") then block.LEDLight.Color = rainbowColor end
+                    if block:FindFirstChild("LightTrail") then block.LightTrail.Color = ColorSequence.new(rainbowColor) end
+                end
+            end
+        else
+            if blocksFolder then blocksFolder:Destroy() end
+        end
+
+        local crownFolder = workspace:FindFirstChild("ZzzZ_KingCrown_" .. LocalPlayer.Name)
+        if State.HaloCrownEnabled and head then
+            if not crownFolder then
+                crownFolder = Instance.new("Folder")
+                crownFolder.Name = "ZzzZ_KingCrown_" .. LocalPlayer.Name
+                crownFolder.Parent = workspace
+
+                for i = 1, 13 do
+                    local cBlock = Instance.new("Part")
+                    cBlock.Name = "CrownPart_" .. i
+                    cBlock.Size = (i <= 8) and Vector3.new(0.2, 0.2, 0.2) or Vector3.new(0.25, 0.35, 0.25)
+                    cBlock.Material = Enum.Material.Neon
+                    cBlock.Anchored = true
+                    cBlock.CanCollide = false
+                    cBlock.CanTouch = false
+                    cBlock.CanQuery = false
+                    cBlock.Parent = crownFolder
+
+                    local cLight = Instance.new("PointLight")
+                    cLight.Name = "CrownLight"
+                    cLight.Range = 5
+                    cLight.Brightness = 3
+                    cLight.Parent = cBlock
+                end
+            end
+
+            local crownCenter = head.Position + Vector3.new(0, 1.1, 0)
+            local baseRadius = 0.85
+
+            for i = 1, 13 do
+                local cBlock = crownFolder:FindFirstChild("CrownPart_" .. i)
+                if cBlock then
+                    local hue = ((i / 13) + (orbitAngle / (math.pi * 2))) % 1
+                    local crownColor = Color3.fromHSV(hue, 0.9, 1)
+
+                    if i <= 8 then
+                        local angle = ((i / 8) * math.pi * 2) + (orbitAngle * 0.3)
+                        local cx = math.cos(angle) * baseRadius
+                        local cz = math.sin(angle) * baseRadius
+                        cBlock.CFrame = CFrame.new(crownCenter + Vector3.new(cx, 0, cz))
+                    else
+                        local peakIndex = i - 8
+                        local angle = ((peakIndex / 5) * math.pi * 2) + (orbitAngle * 0.3)
+                        local cx = math.cos(angle) * (baseRadius * 0.9)
+                        local cz = math.sin(angle) * (baseRadius * 0.9)
+                        cBlock.CFrame = CFrame.new(crownCenter + Vector3.new(cx, 0.4, cz)) * CFrame.Angles(0, 0, math.rad(15))
+                    end
+
+                    cBlock.Color = crownColor
+                    if cBlock:FindFirstChild("CrownLight") then cBlock.CrownLight.Color = crownColor end
+                end
+            end
+        else
+            if crownFolder then crownFolder:Destroy() end
+        end
+
+        local dualWheelFolder = workspace:FindFirstChild("ZzzZ_DualFootWheels_" .. LocalPlayer.Name)
+        if State.LegWheelLEDEnabled then
+            if not dualWheelFolder then
+                dualWheelFolder = Instance.new("Folder")
+                dualWheelFolder.Name = "ZzzZ_DualFootWheels_" .. LocalPlayer.Name
+                dualWheelFolder.Parent = workspace
+
+                for i = 1, 16 do
+                    local wBlock = Instance.new("Part")
+                    wBlock.Name = "DualBlock_" .. i
+                    wBlock.Size = Vector3.new(0.2, 0.2, 0.2)
+                    wBlock.Material = Enum.Material.Neon
+                    wBlock.Anchored = true
+                    wBlock.CanCollide = false
+                    wBlock.CanTouch = false
+                    wBlock.CanQuery = false
+                    wBlock.Parent = dualWheelFolder
+
+                    local wLight = Instance.new("PointLight")
+                    wLight.Name = "AuraLight"
+                    wLight.Range = 6
+                    wLight.Brightness = 5
+                    wLight.Parent = wBlock
+
+                    local att0 = Instance.new("Attachment", wBlock)
+                    att0.Position = Vector3.new(0, 0.15, 0)
+                    local att1 = Instance.new("Attachment", wBlock)
+                    att1.Position = Vector3.new(0, -0.15, 0)
+
+                    local trail = Instance.new("Trail")
+                    trail.Name = "AuraTrail"
+                    trail.Attachment0 = att0
+                    trail.Attachment1 = att1
+                    trail.Lifetime = 0.35
+                    trail.FaceCamera = true
+                    trail.LightEmission = 1
+                    trail.Transparency = NumberSequence.new({
+                        NumberSequenceKeypoint.new(0, 0.1),
+                        NumberSequenceKeypoint.new(1, 1)
+                    })
+                    trail.Parent = wBlock
+                end
+            end
+
+            local wheelRadius = 1.1
+            local rightOffset = hrp.CFrame.RightVector * 1.6
+            local leftOffset = -hrp.CFrame.RightVector * 1.6
+            local feetY = hrp.Position - Vector3.new(0, 2.5, 0)
+
+            for i = 1, 16 do
+                local wBlock = dualWheelFolder:FindFirstChild("DualBlock_" .. i)
+                if wBlock then
+                    local isLeft = (i <= 8)
+                    local indexInWheel = isLeft and i or (i - 8)
+                    local sideCenter = feetY + (isLeft and leftOffset or rightOffset)
+
+                    local angle = wheelAngle + ((indexInWheel / 8) * math.pi * 2)
+                    local offsetLook = math.cos(angle) * wheelRadius
+                    local offsetUp = math.sin(angle) * wheelRadius
+
+                    local blockPos = sideCenter + (hrp.CFrame.LookVector * offsetLook) + Vector3.new(0, offsetUp, 0)
+                    wBlock.CFrame = CFrame.new(blockPos, blockPos + hrp.CFrame.LookVector)
+
+                    local hue = ((i / 16) + (wheelAngle / (math.pi * 2))) % 1
+                    local rainbowColor = Color3.fromHSV(hue, 1, 1)
+
+                    wBlock.Color = rainbowColor
+                    if wBlock:FindFirstChild("AuraLight") then wBlock.AuraLight.Color = rainbowColor end
+                    if wBlock:FindFirstChild("AuraTrail") then wBlock.AuraTrail.Color = ColorSequence.new(rainbowColor) end
+                end
+            end
+        else
+            if dualWheelFolder then dualWheelFolder:Destroy() end
+        end
+
+    end
+end)
+
+---------------------------------------------------------
+-- KEY VERIFICATION
+---------------------------------------------------------
+SubmitBtn.MouseButton1Click:Connect(function()
+    if KeyInput.Text == CORRECT_KEY then
+        KeyFrame.Visible = false
+        MainFrame.Visible = true
+        ToggleUIRainbowBtn.Visible = true
+        
+        Tabs["⚔️ หมวดหมู่ต่อสู้"].Visible = true
+        TabButtons["⚔️ หมวดหมู่ต่อสู้"].BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        TabButtons["⚔️ หมวดหมู่ต่อสู้"].TextColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        SubmitBtn.Text = "❌ WRONG KEY!"
+        SubmitBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        task.wait(1.5)
+        SubmitBtn.Text = "SUBMIT KEY"
+        SubmitBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    end
+end)
