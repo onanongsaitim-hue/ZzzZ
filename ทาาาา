@@ -1,0 +1,95 @@
+local player = game.Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- สร้าง ScreenGui (ตั้งค่า ResetOnSpawn เป็น false เพื่อให้ตายแล้ว UI ไม่หาย)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "SizeControllerGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- หน้าต่างหลัก (Main Frame)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 260)
+mainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true -- ทำให้หน้าต่างลากขยับได้
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+-- ปุ่มวงกลมสำหรับเปิดหน้าต่างกลับมา (ซ่อนไว้ก่อนตอนเริ่ม)
+local openButton = Instance.new("TextButton")
+openButton.Size = UDim2.new(0, 50, 0, 50)
+openButton.Position = UDim2.new(0.05, 0, 0.4, 0)
+openButton.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+openButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+openButton.TextSize = 20
+openButton.Font = Enum.Font.GothamBold
+openButton.Text = "📏"
+openButton.Visible = false -- เริ่มต้นซ่อนไว้ เพราะหน้าต่างหลักเปิดอยู่
+openButton.Parent = screenGui
+
+local openCorner = Instance.new("UICorner")
+openCorner.CornerRadius = UDim.new(1, 0) -- ทำให้เป็นวงกลม
+openCorner.Parent = openButton
+
+-- ปุ่มย่อหน้าต่าง (ปุ่มกากบาทหรือขีดด้านบนขวาของหน้าต่างหลัก)
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+minimizeBtn.Position = UDim2.new(1, -35, 0, 5)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.TextSize = 14
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.Text = "-"
+minimizeBtn.Parent = mainFrame
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(1, 0)
+minCorner.Parent = minimizeBtn
+
+-- หัวข้อหน้าต่าง (Title)
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -40, 0, 40)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "📏 ปรับขนาดตัวละคร"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 15
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = mainFrame
+
+-- ฟังก์ชันสร้างปุ่มปรับขนาด
+local function createButton(name, text, yPos, color)
+	local button = Instance.new("TextButton")
+	button.Name = name
+	button.Size = UDim2.new(0.85, 0, 0, 40)
+	button.Position = UDim2.new(0.075, 0, 0, yPos)
+	button.BackgroundColor3 = color
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.TextSize = 14
+	button.Font = Enum.Font.GothamBold
+	button.Text = text
+	button.Parent = mainFrame
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = button
+	
+	return button
+end
+
+-- สร้างปุ่มต่างๆ
+local btnSmall = createButton("SmallBtn", "ตัวเล็กจิ๋ว (0.5x)", 55, Color3.fromRGB(52, 152, 219))
+local btnNormal = createButton("NormalBtn", "ขนาดปกติ (1.0x)", 105, Color3.fromRGB(46, 204, 113))
+local btnLarge = createButton("LargeBtn", "ตัวยักษ์ (2.0x)", 155, Color3.fromRGB(231, 76, 60))
+local btnReset = createButton("ResetBtn", "รีเซ็ตค่าเดิม", 205, Color3.fromRGB(149, 165, 166))
+
+-- ระบบเปิด-ปิดหน้าต่าง
+minimizeBtn.MouseButton1Click:Connect(function()
+	
