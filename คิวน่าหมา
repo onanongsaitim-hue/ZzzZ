@@ -1,0 +1,138 @@
+local players = game:GetService("Players")
+local player = players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local replicatedStorage = game:GetService("ReplicatedStorage")
+
+-- ป้องกันสร้างซ้ำ
+if playerGui:FindFirstChild("PlaneControlGui") then
+	playerGui.PlaneControlGui:Destroy()
+end
+
+-- สร้าง ScreenGui (ResetOnSpawn = false เพื่อไม่ให้หายตอนตาย)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PlaneControlGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- 1. สร้างเป้าเล็งกลางจอ (Crosshair)
+local crosshair = Instance.new("Frame")
+crosshair.Name = "Crosshair"
+crosshair.Size = UDim2.new(0, 10, 0, 10)
+crosshair.AnchorPoint = Vector2.new(0.5, 0.5)
+crosshair.Position = UDim2.new(0.5, 0, 0.5, 0)
+crosshair.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+crosshair.BorderSizePixel = 0
+crosshair.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(1, 0)
+corner.Parent = crosshair
+
+-- 2. สร้างปุ่มเปิด/ปิดหน้าต่าง UI (ToggleBtn)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleBtn"
+toggleBtn.Size = UDim2.new(0, 110, 0, 40)
+toggleBtn.Position = UDim2.new(0, 20, 0, 20)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.TextSize = 14
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.Text = "ปิดหน้าต่าง"
+toggleBtn.Parent = screenGui
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = toggleBtn
+
+-- 3. สร้างหน้าต่างหลัก (MainWindow)
+local mainWindow = Instance.new("Frame")
+mainWindow.Name = "MainWindow"
+mainWindow.Size = UDim2.new(0, 220, 0, 230)
+mainWindow.Position = UDim2.new(0, 20, 0, 70)
+mainWindow.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+mainWindow.BackgroundTransparency = 0.2
+mainWindow.BorderSizePixel = 0
+mainWindow.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainWindow
+
+-- ปุ่มเรียกเครื่องบิน & ย่อส่วน
+local startBtn = Instance.new("TextButton")
+startBtn.Name = "StartBtn"
+startBtn.Size = UDim2.new(0, 180, 0, 45)
+startBtn.Position = UDim2.new(0.5, -90, 0, 20)
+startBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+startBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+startBtn.TextSize = 15
+startBtn.Font = Enum.Font.SourceSansBold
+startBtn.Text = "เรียกเครื่องบิน & ย่อส่วน"
+startBtn.Parent = mainWindow
+
+local startCorner = Instance.new("UICorner")
+startCorner.CornerRadius = UDim.new(0, 8)
+startCorner.Parent = startBtn
+
+-- กรอบควบคุมการบิน (ซ่อนไว้ก่อนจนกว่าจะกดเรียกเครื่องบิน)
+local flightControls = Instance.new("Frame")
+flightControls.Name = "FlightControls"
+flightControls.Size = UDim2.new(0, 180, 0, 140)
+flightControls.Position = UDim2.new(0.5, -90, 0, 75)
+flightControls.BackgroundTransparency = 1
+flightControls.Visible = false
+flightControls.Parent = mainWindow
+
+local function createFlightBtn(name, text, posY, color)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0, 180, 0, 38)
+	btn.Position = UDim2.new(0, 0, 0, posY)
+	btn.BackgroundColor3 = color
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.TextSize = 14
+	btn.Font = Enum.Font.SourceSansBold
+	btn.Text = text
+	btn.Parent = flightControls
+	
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 6)
+	c.Parent = btn
+	return btn
+end
+
+local upBtn = createFlightBtn("UpBtn", "บินขึ้น (+เอฟเฟกต์ลม)", 0, Color3.fromRGB(46, 204, 113))
+local downBtn = createFlightBtn("DownBtn", "บินลง", 45, Color3.fromRGB(231, 76, 60))
+local boostBtn = createFlightBtn("BoostBtn", "บูสต์ความเร็ว", 90, Color3.fromRGB(241, 196, 15))
+
+-- ระบบสั่งงานผ่าน RemoteEvent
+local airplaneEvent = replicatedStorage:WaitForChild("AirplaneEvent", 5)
+if not airplaneEvent then return end
+
+-- เปิด/ปิด UI
+local isOpen = true
+toggleBtn.MouseButton1Click:Connect(function()
+	isOpen = not isOpen
+	mainWindow.Visible = isOpen
+	toggleBtn.Text = isOpen and "ปิดหน้าต่าง" or "เปิดหน้าต่าง"
+end)
+
+-- กดปุ่มเรียกเครื่องบิน
+startBtn.MouseButton1Click:Connect(function()
+	airplaneEvent:FireServer("StartProcess")
+	mainWindow.Visible = false
+	flightControls.Visible = true
+end)
+
+-- กดปุ่มควบคุมการบิน
+upBtn.MouseButton1Click:Connect(function()
+	airplaneEvent:FireServer("FlyUp")
+end)
+
+downBtn.MouseButton1Click:Connect(function()
+	airplaneEvent:FireServer("FlyDown")
+end)
+
+boostBtn.MouseButton1Click:Connect(function()
+	airplaneEvent:FireServer("Boost")
+end)
