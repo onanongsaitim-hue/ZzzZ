@@ -1,0 +1,328 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local camera = workspace.CurrentCamera
+
+-- ตัวแปรเก็บสถานะ
+local isFlying = false
+local isBoosting = false
+local waistPart = nil
+local backPart = nil
+local currentTool = nil
+local activeProjectile = nil
+local flightConnection = nil
+
+-- ==========================================
+-- 1. สร้างหน้าต่าง HUD สกิลบนหน้าจอ
+-- ==========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "SkillHUD"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local skillFrame = Instance.new("Frame")
+skillFrame.Name = "SkillFrame"
+skillFrame.Size = UDim2.new(0, 160, 0, 80)
+skillFrame.Position = UDim2.new(1, -180, 1, -100)
+skillFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+skillFrame.BackgroundTransparency = 0.3
+skillFrame.BorderSizePixel = 0
+skillFrame.Visible = false
+skillFrame.Parent = screenGui
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 12)
+frameCorner.Parent = skillFrame
+
+local actionSkillBtn = Instance.new("TextButton")
+actionSkillBtn.Size = UDim2.new(0.9, 0, 0.75, 0)
+actionSkillBtn.Position = UDim2.new(0.05, 0, 0.125, 0)
+actionSkillBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+actionSkillBtn.Text = "🚀 ปาบล็อก / สกิล"
+actionSkillBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+actionSkillBtn.Font = Enum.Font.GothamBold
+actionSkillBtn.TextSize = 14
+actionSkillBtn.Parent = skillFrame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.Parent = actionSkillBtn
+
+local recallSkillBtn = Instance.new("TextButton")
+recallSkillBtn.Size = UDim2.new(0, 70, 0, 80)
+recallSkillBtn.Position = UDim2.new(0, -80, 0, 0)
+recallSkillBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+recallSkillBtn.BackgroundTransparency = 0.2
+recallSkillBtn.Text = "🔄 เรียกกลับ"
+recallSkillBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+recallSkillBtn.Font = Enum.Font.GothamBold
+recallSkillBtn.TextSize = 12
+recallSkillBtn.Visible = false
+recallSkillBtn.Parent = skillFrame
+
+local recallCorner = Instance.new("UICorner")
+recallCorner.CornerRadius = UDim.new(0, 8)
+recallCorner.Parent = recallSkillBtn
+
+-- ==========================================
+-- 2. ฟังก์ชันสร้างโมเดลตัวละคร (เอวขวา + หลัง)
+-- ==========================================
+local function attachParts(character)
+	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+	if not torso then return end
+
+	if waistPart then waistPart:Destroy() end
+	if backPart then backPart:Destroy() end
+
+	-- ก้อนสี่เหลี่ยมสีดำที่ข้างเอวด้านขวา
+	waistPart = Instance.new("Part")
+	waistPart.Name = "WaistBlackBlock"
+	waistPart.Size = Vector3.new(0.6, 0.6, 1.2)
+	waistPart.Color = Color3.fromRGB(20, 20, 20)
+	waistPart.Material = Enum.Material.SmoothPlastic
+	waistPart.CanCollide = false
+	waistPart.Massless = true
+	waistPart.Parent = character
+
+	local waistWeld = Instance.new("Weld")
+	waistWeld.Part0 = torso
+	waistWeld.Part1 = waistPart
+	waistWeld.C0 = CFrame.new(1.1, -0.8, 0)
+	waistWeld.Parent = waistPart
+
+	-- ก้อนสี่เหลี่ยมยาวสีเทาที่หลัง
+	backPart = Instance.new("Part")
+	backPart.Name = "BackGreyBlock"
+	backPart.Size = Vector3.new(0.8, 3.2, 0.4)
+	backPart.Color = Color3.fromRGB(130, 130, 135)
+	backPart.Material = Enum.Material.Metal
+	backPart.CanCollide = false
+	backPart.Massless = true
+	backPart.Parent = character
+
+	local backWeld = Instance.new("Weld")
+	backWeld.Part0 = torso
+	backWeld.Part1 = backPart
+	backWeld.C0 = CFrame.new(0, 0.2, 0.7) * CFrame.Angles(0, 0, math.rad(15))
+	backWeld.Parent = backPart
+end
+
+-- Forward declarations
+local stopControllingBlock
+local launchBlock
+
+-- ==========================================
+-- 3. ฟังก์ชันการบินและควบคุม (เอียงก่อนแล้วค่อยเลี้ยว)
+-- ==========================================
+launchBlock = function(targetPosition)
+	if isFlying then return end
+	local character = player.Character
+	if not character then return end
+	
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	local handle = currentTool and currentTool:FindFirstChild("Handle")
+	if not humanoid or not rootPart or not handle then return end
+
+	isFlying = true
+	handle.Transparency = 1
+	rootPart.Anchored = true
+
+	skillFrame.Visible = true
+	actionSkillBtn.Text = "🔥 บูสต์ความเร็ว!"
+	actionSkillBtn.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
+	recallSkillBtn.Visible = true
+
+	activeProjectile = Instance.new("Part")
+	activeProjectile.Name = "FlyingGreyBlock"
+	activeProjectile.Size = Vector3.new(0.8, 0.4, 3.2)
+	activeProjectile.Color = Color3.fromRGB(130, 130, 135)
+	activeProjectile.Material = Enum.Material.Metal
+	activeProjectile.CanCollide = true
+	activeProjectile.Anchored = true
+	activeProjectile.CFrame = CFrame.lookAt(handle.Position, targetPosition)
+	activeProjectile.Parent = workspace
+
+	camera.CameraSubject = activeProjectile
+
+	local baseSpeed = 45
+	local boostSpeed = 85
+	local steerSpeed = 35
+	local currentRoll = 0
+	local currentSteerX = 0
+	local currentSteerY = 0
+	local maxRollAngle = math.rad(28) -- เอียงนิดนึงประมาณ 28 องศา
+
+	flightConnection = RunService.RenderStepped:Connect(function(dt)
+		if not activeProjectile or not activeProjectile.Parent then
+			stopControllingBlock()
+			return
+		end
+
+		local moveDir = humanoid.MoveDirection
+		local camLook = camera.CFrame.LookVector
+		local currentPos = activeProjectile.Position
+		
+		local currentSpeed = isBoosting and boostSpeed or baseSpeed
+		local targetInputX = 0
+		local targetInputY = 0
+		
+		if moveDir.Magnitude > 0 then
+			local relativeMove = camera.CFrame:VectorToObjectSpace(moveDir)
+			-- relativeMove.X: กดซ้าย = ค่าลบ (-1), กดขวา = ค่าบวก (+1)
+			targetInputX = relativeMove.X
+			targetInputY = -relativeMove.Z
+		end
+
+		-- 1. คำนวณการเอียง (Roll) ให้ตอบสนองไวกว่าการเลี้ยว
+		-- ใน Roblox CFrame.Angles(0, 0, z): ค่าลบ (-) คือเอียงขวา, ค่าบวก (+) คือเอียงซ้าย
+		-- ดังนั้นเมื่อกดซ้าย (targetInputX = -1) ค่า targetRoll จะเป็นลบ (เอียงขวา)
+		-- และเมื่อกดขวา (targetInputX = +1) ค่า targetRoll จะเป็นบวก (เอียงซ้าย)
+		local targetRoll = targetInputX * maxRollAngle
+		currentRoll = currentRoll + (targetRoll - currentRoll) * math.clamp(dt * 12, 0, 1)
+
+		-- 2. คำนวณการเลี้ยว (Steer) ให้ตามมาทีหลังช้ากว่าการเอียงนิดนึง (เกิดจังหวะเอียงก่อนแล้วค่อยไป)
+		currentSteerX = currentSteerX + (targetInputX - currentSteerX) * math.clamp(dt * 4.5, 0, 1)
+		currentSteerY = currentSteerY + (targetInputY - currentSteerY) * math.clamp(dt * 6, 0, 1)
+
+		local velocity = (camLook * currentSpeed) 
+			+ (camera.CFrame.RightVector * (currentSteerX * steerSpeed)) 
+			+ (camera.CFrame.UpVector * (currentSteerY * steerSpeed))
+
+		local baseCFrame = CFrame.lookAt(currentPos, currentPos + camLook)
+		activeProjectile.CFrame = (baseCFrame * CFrame.Angles(0, 0, currentRoll)) + (velocity * dt)
+	end)
+end
+
+-- ==========================================
+-- 4. ฟังก์ชันหยุดการบินและคืนค่า
+-- ==========================================
+stopControllingBlock = function()
+	isFlying = false
+	isBoosting = false
+	recallSkillBtn.Visible = false
+	skillFrame.Visible = false
+	
+	if flightConnection then
+		flightConnection:Disconnect()
+		flightConnection = nil
+	end
+	
+	if activeProjectile then
+		activeProjectile:Destroy()
+		activeProjectile = nil
+	end
+
+	local character = player.Character
+	if character then
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		local rootPart = character:FindFirstChild("HumanoidRootPart")
+		
+		if humanoid then
+			camera.CameraSubject = humanoid
+			camera.CameraType = Enum.CameraType.Custom
+		end
+		
+		if rootPart then
+			rootPart.Anchored = false
+		end
+		
+		if currentTool and currentTool.Parent == character then
+			local handle = currentTool:FindFirstChild("Handle")
+			if handle then handle.Transparency = 0 end
+		elseif backPart and not isFlying then
+			backPart.Transparency = 0
+		end
+	end
+end
+
+-- ==========================================
+-- 5. สร้าง Tool (ไอเทมในกระเป๋า)
+-- ==========================================
+local function createBlockTool()
+	if currentTool then currentTool:Destroy() end
+
+	local tool = Instance.new("Tool")
+	tool.Name = "Remote Block"
+	tool.RequiresHandle = true
+
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.8, 3.2, 0.4)
+	handle.Color = Color3.fromRGB(130, 130, 135)
+	handle.Material = Enum.Material.Metal
+	handle.CanCollide = false
+	handle.Parent = tool
+
+	tool.GripPos = Vector3.new(0, -0.5, 0)
+	tool.GripForward = Vector3.new(0, 0, -1)
+	tool.GripRight = Vector3.new(1, 0, 0)
+	tool.GripUp = Vector3.new(0, 1, 0)
+
+	tool.Equipped:Connect(function()
+		if backPart then backPart.Transparency = 1 end
+		if not isFlying then
+			handle.Transparency = 0
+			skillFrame.Visible = true
+			actionSkillBtn.Text = "🚀 ปาบล็อกออกไป"
+			actionSkillBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+			recallSkillBtn.Visible = false
+		end
+	end)
+
+	tool.Unequipped:Connect(function()
+		if backPart and not isFlying then backPart.Transparency = 0 end
+		if not isFlying then
+			skillFrame.Visible = false
+		end
+	end)
+
+	tool.Activated:Connect(function()
+		if not isFlying then
+			launchBlock(mouse.Hit.Position)
+		end
+	end)
+
+	tool.Parent = player:WaitForChild("Backpack")
+	currentTool = tool
+end
+
+-- ==========================================
+-- 6. การทำงานของปุ่มสกิลบนจอ (HUD)
+-- ==========================================
+actionSkillBtn.MouseButton1Click:Connect(function()
+	if not isFlying then
+		launchBlock(mouse.Hit.Position)
+	else
+		isBoosting = not isBoosting
+		if isBoosting then
+			actionSkillBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 0)
+			actionSkillBtn.Text = "🔥 กำลังบูสต์!"
+		else
+			actionSkillBtn.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
+			actionSkillBtn.Text = "🚀 บูสต์ความเร็ว!"
+		end
+	end
+end)
+
+recallSkillBtn.MouseButton1Click:Connect(function()
+	stopControllingBlock()
+end)
+
+-- โหลดอุปกรณ์ทันทีเมื่อตัวละครเกิด
+task.spawn(function()
+	if player.Character then
+		attachParts(player.Character)
+		createBlockTool()
+	end
+end)
+
+player.CharacterAdded:Connect(function(newChar)
+	stopControllingBlock()
+	task.wait(0.5)
+	attachParts(newChar)
+	createBlockTool()
+end)
