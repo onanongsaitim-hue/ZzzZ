@@ -1,0 +1,346 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local camera = workspace.CurrentCamera
+
+-- ตัวแปรเก็บสถานะ
+local isGearActive = false
+local isFlying = false
+local waistPart = nil
+local backPart = nil
+local currentTool = nil
+local activeProjectile = nil
+local flightConnection = nil
+
+-- ==========================================
+-- 1. สร้างหน้าต่าง UI (รองรับการลากเลื่อน)
+-- ==========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "RemoteBlockUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 240, 0, 140)
+mainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 10)
+uiCorner.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleBar"
+titleLabel.Size = UDim2.new(1, 0, 0, 35)
+titleLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+titleLabel.Text = "ระบบควบคุมบล็อก"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 14
+titleLabel.Active = true
+titleLabel.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = titleLabel
+
+-- ระบบลากเลื่อนหน้าต่าง (รองรับทั้ง Mouse และ Touch บนมือถือ)
+local dragging, dragInput, dragStart, startPos
+
+titleLabel.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+titleLabel.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		local delta = input.Position - dragStart
+		mainFrame.Position = UDim2.new(
+			startPos.X.Scale, 
+			startPos.X.Offset + delta.X, 
+			startPos.Y.Scale, 
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- ปุ่มฟังก์ชันหลัก (เปิดใช้งานอุปกรณ์)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0.85, 0, 0, 40)
+toggleBtn.Position = UDim2.new(0.075, 0, 0.35, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 127)
+toggleBtn.Text = "1. เปิดใช้งานอุปกรณ์"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 14
+toggleBtn.Parent = mainFrame
+
+local btnCorner1 = Instance.new("UICorner")
+btnCorner1.CornerRadius = UDim.new(0, 8)
+btnCorner1.Parent = toggleBtn
+
+-- ปุ่มเรียกบล็อกกลับ
+local recallBtn = Instance.new("TextButton")
+recallBtn.Size = UDim2.new(0.85, 0, 0, 30)
+recallBtn.Position = UDim2.new(0.075, 0, 0.72, 0)
+recallBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+recallBtn.Text = "เรียกบล็อกกลับ / คืนมุมมอง"
+recallBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+recallBtn.Font = Enum.Font.Gotham
+recallBtn.TextSize = 12
+recallBtn.Visible = false
+recallBtn.Parent = mainFrame
+
+local btnCorner2 = Instance.new("UICorner")
+btnCorner2.CornerRadius = UDim.new(0, 6)
+btnCorner2.Parent = recallBtn
+
+-- ==========================================
+-- 2. ฟังก์ชันจัดการโมเดลบนตัวละคร
+-- ==========================================
+local function attachParts(character)
+	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+	if not torso then return end
+
+	if waistPart then waistPart:Destroy() end
+	if backPart then backPart:Destroy() end
+
+	-- ก้อนสี่เหลี่ยมสีดำที่ข้างเอว (ปรับตำแหน่ง X ให้มาอยู่ด้านข้าง)
+	waistPart = Instance.new("Part")
+	waistPart.Name = "WaistBlackBlock"
+	waistPart.Size = Vector3.new(0.6, 0.6, 1.2)
+	waistPart.Color = Color3.fromRGB(20, 20, 20)
+	waistPart.Material = Enum.Material.SmoothPlastic
+	waistPart.CanCollide = false
+	waistPart.Massless = true
+	waistPart.Parent = character
+
+	local waistWeld = Instance.new("Weld")
+	waistWeld.Part0 = torso
+	waistWeld.Part1 = waistPart
+	waistWeld.C0 = CFrame.new(1.1, -0.8, 0) -- ย้ายมาไว้ที่ข้างเอวด้านขวา
+	waistWeld.Parent = waistPart
+
+	-- ก้อนสี่เหลี่ยมยาวสีเทาที่หลัง
+	backPart = Instance.new("Part")
+	backPart.Name = "BackGreyBlock"
+	backPart.Size = Vector3.new(0.8, 3.2, 0.4)
+	backPart.Color = Color3.fromRGB(130, 130, 135)
+	backPart.Material = Enum.Material.Metal
+	backPart.CanCollide = false
+	backPart.Massless = true
+	backPart.Parent = character
+
+	local backWeld = Instance.new("Weld")
+	backWeld.Part0 = torso
+	backWeld.Part1 = backPart
+	backWeld.C0 = CFrame.new(0, 0.2, 0.7) * CFrame.Angles(0, 0, math.rad(15))
+	backWeld.Parent = backPart
+end
+
+-- ==========================================
+-- 3. ฟังก์ชันหยุดการบินและคืนค่ามุมมอง
+-- ==========================================
+local function stopControllingBlock()
+	isFlying = false
+	recallBtn.Visible = false
+	
+	if flightConnection then
+		flightConnection:Disconnect()
+		flightConnection = nil
+	end
+	
+	if activeProjectile then
+		activeProjectile:Destroy()
+		activeProjectile = nil
+	end
+
+	local character = player.Character
+	if character then
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		local rootPart = character:FindFirstChild("HumanoidRootPart")
+		
+		if humanoid then
+			camera.CameraSubject = humanoid
+			camera.CameraType = Enum.CameraType.Custom
+		end
+		
+		if rootPart then
+			rootPart.Anchored = false
+		end
+		
+		if currentTool and currentTool.Parent == character then
+			local handle = currentTool:FindFirstChild("Handle")
+			if handle then handle.Transparency = 0 end
+		elseif backPart and not isFlying then
+			backPart.Transparency = 0
+		end
+	end
+end
+
+-- ==========================================
+-- 4. ฟังก์ชันยิงและบังคับบล็อกกลางอากาศ
+-- ==========================================
+local function launchBlock(targetPosition)
+	if isFlying then return end
+	local character = player.Character
+	if not character then return end
+	
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	local handle = currentTool and currentTool:FindFirstChild("Handle")
+	if not humanoid or not rootPart or not handle then return end
+
+	isFlying = true
+	recallBtn.Visible = true
+	handle.Transparency = 1
+
+	rootPart.Anchored = true
+
+	activeProjectile = Instance.new("Part")
+	activeProjectile.Name = "FlyingGreyBlock"
+	activeProjectile.Size = Vector3.new(0.8, 0.4, 3.2)
+	activeProjectile.Color = Color3.fromRGB(130, 130, 135)
+	activeProjectile.Material = Enum.Material.Metal
+	activeProjectile.CanCollide = true
+	activeProjectile.Anchored = true
+	activeProjectile.CFrame = CFrame.lookAt(handle.Position, targetPosition)
+	activeProjectile.Parent = workspace
+
+	camera.CameraSubject = activeProjectile
+
+	local forwardSpeed = 45
+	local steerSpeed = 35
+
+	flightConnection = RunService.RenderStepped:Connect(function(dt)
+		if not activeProjectile or not activeProjectile.Parent then
+			stopControllingBlock()
+			return
+		end
+
+		local moveDir = humanoid.MoveDirection
+		local camLook = camera.CFrame.LookVector
+		local currentPos = activeProjectile.Position
+		
+		local targetCFrame = CFrame.lookAt(currentPos, currentPos + camLook)
+		local velocity = camLook * forwardSpeed
+		
+		if moveDir.Magnitude > 0 then
+			local relativeMove = camera.CFrame:VectorToObjectSpace(moveDir)
+			local rightVec = camera.CFrame.RightVector * (relativeMove.X * steerSpeed)
+			local upVec = camera.CFrame.UpVector * (-relativeMove.Z * steerSpeed)
+			velocity = velocity + rightVec + upVec
+		end
+
+		activeProjectile.CFrame = targetCFrame + (velocity * dt)
+	end)
+end
+
+-- ==========================================
+-- 5. สร้าง Tool (สิ่งของในตัวละคร)
+-- ==========================================
+local function createBlockTool()
+	if currentTool then currentTool:Destroy() end
+
+	local tool = Instance.new("Tool")
+	tool.Name = "Remote Block"
+	tool.RequiresHandle = true
+
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.8, 3.2, 0.4)
+	handle.Color = Color3.fromRGB(130, 130, 135)
+	handle.Material = Enum.Material.Metal
+	handle.CanCollide = false
+	handle.Parent = tool
+
+	tool.GripPos = Vector3.new(0, -0.5, 0)
+	tool.GripForward = Vector3.new(0, 0, -1)
+	tool.GripRight = Vector3.new(1, 0, 0)
+	tool.GripUp = Vector3.new(0, 1, 0)
+
+	tool.Equipped:Connect(function()
+		if backPart then
+			backPart.Transparency = 1
+		end
+		if not isFlying then
+			handle.Transparency = 0
+		end
+	end)
+
+	tool.Unequipped:Connect(function()
+		if backPart and not isFlying then
+			backPart.Transparency = 0
+		end
+	end)
+
+	tool.Activated:Connect(function()
+		if not isFlying then
+			local targetPos = mouse.Hit.Position
+			launchBlock(targetPos)
+		end
+	end)
+
+	tool.Parent = player:WaitForChild("Backpack")
+	currentTool = tool
+end
+
+-- ==========================================
+-- 6. เชื่อมต่อปุ่ม UI และตัวละคร
+-- ==========================================
+toggleBtn.MouseButton1Click:Connect(function()
+	isGearActive = not isGearActive
+	
+	if isGearActive then
+		toggleBtn.Text = "ปิดใช้งานอุปกรณ์"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
+		
+		if player.Character then
+			attachParts(player.Character)
+			createBlockTool()
+		end
+	else
+		toggleBtn.Text = "1. เปิดใช้งานอุปกรณ์"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 127)
+		
+		stopControllingBlock()
+		if waistPart then waistPart:Destroy() waistPart = nil end
+		if backPart then backPart:Destroy() backPart = nil end
+		if currentTool then currentTool:Destroy() currentTool = nil end
+	end
+end)
+
+recallBtn.MouseButton1Click:Connect(function()
+	stopControllingBlock()
+end)
+
+player.CharacterAdded:Connect(function(newChar)
+	stopControllingBlock()
+	if isGearActive then
+		task.wait(0.5)
+		attachParts(newChar)
+		createBlockTool()
+	end
+end)
