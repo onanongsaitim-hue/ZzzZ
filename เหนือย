@@ -1,0 +1,331 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ลบ UI เก่ากันซ้ำ
+if playerGui:FindFirstChild("F16RealControlGui") then
+	playerGui.F16RealControlGui:Destroy()
+end
+
+-- สร้าง ScreenGui (ResetOnSpawn = false เพื่อไม่ให้หายเวลาตาย)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "F16RealControlGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- ปุ่มเปิด/ปิด เมนูหลัก
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 150, 0, 45)
+toggleButton.Position = UDim2.new(0, 20, 0, 20)
+toggleButton.Text = "✈️ ควบคุม F-16"
+toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 15
+toggleButton.Parent = screenGui
+Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(0, 8)
+
+-- หน้าต่างหลัก (UI Window)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 280, 0, 460)
+mainFrame.Position = UDim2.new(0.5, -140, 0.5, -230)
+mainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+-- หัวข้อหน้าต่าง (ใช้สำหรับลาก)
+local titleBar = Instance.new("TextLabel")
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+titleBar.Text = "F-16 สมจริง (เปิดกระจกออโต้)"
+titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.Font = Enum.Font.GothamBold
+titleBar.TextSize = 14
+titleBar.Parent = mainFrame
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+
+-- ปุ่มกดเรียก F-16
+local spawnButton = Instance.new("TextButton")
+spawnButton.Size = UDim2.new(0, 240, 0, 40)
+spawnButton.Position = UDim2.new(0.5, -120, 0, 50)
+spawnButton.Text = "🚀 เรียก F-16 ทรงเป๊ะลงมาจอด"
+spawnButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+spawnButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+spawnButton.Font = Enum.Font.GothamBold
+spawnButton.TextSize = 13
+spawnButton.Parent = mainFrame
+Instance.new("UICorner", spawnButton).CornerRadius = UDim.new(0, 8)
+
+-- แสดงสถานะความเร็ว
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(0, 240, 0, 30)
+speedLabel.Position = UDim2.new(0.5, -120, 0, 95)
+speedLabel.Text = "ความเร็ว: 50 | สูงสุด: 160"
+speedLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextSize = 13
+speedLabel.Parent = mainFrame
+Instance.new("UICorner", speedLabel).CornerRadius = UDim.new(0, 6)
+
+-- ปุ่มปรับความเร็ว (+ / -)
+local speedUpBtn = Instance.new("TextButton")
+speedUpBtn.Size = UDim2.new(0, 115, 0, 35)
+speedUpBtn.Position = UDim2.new(0.5, -120, 0, 130)
+speedUpBtn.Text = "➕ เพิ่มความเร็ว"
+speedUpBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+speedUpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedUpBtn.Font = Enum.Font.GothamBold
+speedUpBtn.TextSize = 13
+speedUpBtn.Parent = mainFrame
+Instance.new("UICorner", speedUpBtn).CornerRadius = UDim.new(0, 6)
+
+local speedDownBtn = Instance.new("TextButton")
+speedDownBtn.Size = UDim2.new(0, 115, 0, 35)
+speedDownBtn.Position = UDim2.new(0.5, 5, 0, 130)
+speedDownBtn.Text = "➖ ลดความเร็ว"
+speedDownBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+speedDownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedDownBtn.Font = Enum.Font.GothamBold
+speedDownBtn.TextSize = 13
+speedDownBtn.Parent = mainFrame
+Instance.new("UICorner", speedDownBtn).CornerRadius = UDim.new(0, 6)
+
+-- ปุ่มควบคุมทิศทาง
+local function createControlBtn(name, text, posX, posY, color)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0, 115, 0, 38)
+	btn.Position = UDim2.new(0.5, posX, 0, posY)
+	btn.Text = text
+	btn.BackgroundColor3 = color
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 13
+	btn.Parent = mainFrame
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	return btn
+end
+
+local forwardBtn = createControlBtn("ForwardBtn", "⬆️ เดินหน้า", -120, 172, Color3.fromRGB(60, 60, 60))
+local backwardBtn = createControlBtn("BackwardBtn", "⬇️ ถอยหลัง", 5, 172, Color3.fromRGB(60, 60, 60))
+local leftBtn = createControlBtn("LeftBtn", "⬅️ เลี้ยวซ้าย", -120, 215, Color3.fromRGB(60, 60, 60))
+local rightBtn = createControlBtn("RightBtn", "➡️ เลี้ยวขวา", 5, 215, Color3.fromRGB(60, 60, 60))
+local upBtn = createControlBtn("UpBtn", "🔼 บินขึ้น", -120, 258, Color3.fromRGB(60, 60, 60))
+local downBtn = createControlBtn("DownBtn", "🔽 บินลง", 5, 258, Color3.fromRGB(60, 60, 60))
+
+-- ปุ่มเปิด/ปิด กระจก
+local canopyBtn = Instance.new("TextButton")
+canopyBtn.Size = UDim2.new(0, 240, 0, 38)
+canopyBtn.Position = UDim2.new(0.5, -120, 0, 301)
+canopyBtn.Text = "🔓 เปิด/ปิด กระจกห้องนักบิน"
+canopyBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 180)
+canopyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+canopyBtn.Font = Enum.Font.GothamBold
+canopyBtn.TextSize = 13
+canopyBtn.Parent = mainFrame
+Instance.new("UICorner", canopyBtn).CornerRadius = UDim.new(0, 8)
+
+-- ปุ่มขึ้นนั่ง & ลบเครื่องบิน
+local sitBtn = Instance.new("TextButton")
+sitBtn.Size = UDim2.new(0, 115, 0, 38)
+sitBtn.Position = UDim2.new(0.5, -120, 0, 344)
+sitBtn.Text = "💺 ขึ้นนั่งขับ"
+sitBtn.BackgroundColor3 = Color3.fromRGB(215, 140, 0)
+sitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+sitBtn.Font = Enum.Font.GothamBold
+sitBtn.TextSize = 13
+sitBtn.Parent = mainFrame
+Instance.new("UICorner", sitBtn).CornerRadius = UDim.new(0, 8)
+
+local stopBtn = Instance.new("TextButton")
+stopBtn.Size = UDim2.new(0, 115, 0, 38)
+stopBtn.Position = UDim2.new(0.5, 5, 0, 344)
+stopBtn.Text = "🛑 ลบเครื่องบิน"
+stopBtn.BackgroundColor3 = Color3.fromRGB(110, 50, 50)
+stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+stopBtn.Font = Enum.Font.GothamBold
+stopBtn.TextSize = 13
+stopBtn.Parent = mainFrame
+Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
+
+-- ระบบเปิด/ปิด หน้าต่าง UI
+toggleButton.MouseButton1Click:Connect(function()
+	mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- ระบบลากหน้าต่าง (Draggable UI)
+local dragging, dragInput, dragStart, startPos
+titleBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if dragging and dragInput then
+		local delta = dragInput.Position - dragStart
+		mainFrame.Position = UDim2.new(
+			startPos.X.Scale, 
+			startPos.X.Offset + delta.X, 
+			startPos.Y.Scale, 
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- ตัวแปรควบคุม
+local activeJet = nil
+local pilotSeat = nil
+local canopyPart = nil
+local allVapors = {}
+local currentSpeed = 50
+local maxSpeed = 160
+local isLanding = false
+local isCanopyOpen = false
+
+local isMovingForward, isMovingBackward = false, false
+local isTurningLeft, isTurningRight = false, false
+local isGoingUp, isGoingDown = false, false
+
+-- ฟังก์ชันเชื่อมชิ้นส่วน
+local function weldPart(part, mainBody, canCollide)
+	part.Anchored = false
+	part.Massless = true
+	part.CanCollide = canCollide
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = mainBody
+	weld.Part1 = part
+	weld.Parent = mainBody
+end
+
+-- สร้างโมเดล F-16 ทรงเป๊ะสมจริง
+spawnButton.MouseButton1Click:Connect(function()
+	if activeJet then activeJet:Destroy() end
+	allVapors = {}
+	
+	local character = player.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+	
+	local hrp = character.HumanoidRootPart
+	local landPos = hrp.Position + (hrp.CFrame.LookVector * 24) + Vector3.new(0, 2.5, 0)
+	local spawnPos = landPos + Vector3.new(0, 220, 0) - (hrp.CFrame.LookVector * 90)
+	
+	local jetModel = Instance.new("Model")
+	jetModel.Name = "AccurateF16"
+	jetModel.Parent = workspace
+	
+	-- 1. ลำตัวหลัก (Fuselage)
+	local mainBody = Instance.new("Part")
+	mainBody.Name = "MainBody"
+	mainBody.Size = Vector3.new(2.8, 2.4, 18)
+	mainBody.CFrame = CFrame.lookAt(spawnPos, landPos)
+	mainBody.Color = Color3.fromRGB(115, 125, 135)
+	mainBody.Material = Enum.Material.SmoothPlastic
+	mainBody.Anchored = false
+	mainBody.CanCollide = true
+	mainBody.Parent = jetModel
+	
+	-- 2. หัวเครื่องบินแหลม (Nose Cone)
+	local nose = Instance.new("WedgePart")
+	nose.Size = Vector3.new(2.8, 2.4, 5.5)
+	nose.CFrame = mainBody.CFrame * CFrame.new(0, 0, -11.75) * CFrame.Angles(0, math.rad(180), 0)
+	nose.Color = Color3.fromRGB(100, 110, 120)
+	nose.Material = Enum.Material.SmoothPlastic
+	nose.Parent = jetModel
+	weldPart(nose, mainBody, true)
+	
+	-- 3. ช่องรับลมใต้ท้องเครื่อง F-16 (Chin Inlet)
+	local intake = Instance.new("Part")
+	intake.Size = Vector3.new(2.4, 1.7, 7)
+	intake.CFrame = mainBody.CFrame * CFrame.new(0, -1.85, -2.5)
+	intake.Color = Color3.fromRGB(105, 115, 125)
+	intake.Material = Enum.Material.SmoothPlastic
+	intake.Parent = jetModel
+	weldPart(intake, mainBody, true)
+	
+	-- 4. กระจกห้องนักบินโค้ง (Canopy)
+	local canopy = Instance.new("Part")
+	canopy.Name = "CanopyGlass"
+	canopy.Shape = Enum.PartType.Cylinder
+	canopy.Size = Vector3.new(2.3, 2.1, 5.0)
+	canopy.CFrame = mainBody.CFrame * CFrame.new(0, 1.3, -1.8) * CFrame.Angles(0, 0, math.rad(90))
+	canopy.Color = Color3.fromRGB(30, 90, 140)
+	canopy.Material = Enum.Material.Glass
+	canopy.Transparency = 0.4
+	canopy.Parent = jetModel
+	weldPart(canopy, mainBody, false)
+	canopyPart = canopy
+	isCanopyOpen = false
+	
+	-- 5. เบาะที่นั่ง (Seat)
+	local seat = Instance.new("Seat")
+	seat.Name = "PilotSeat"
+	seat.Size = Vector3.new(2, 0.6, 2)
+	seat.CFrame = mainBody.CFrame * CFrame.new(0, 1.3, -1.8)
+	seat.Color = Color3.fromRGB(25, 25, 25)
+	seat.Material = Enum.Material.Fabric
+	seat.Parent = jetModel
+	weldPart(seat, mainBody, true)
+	pilotSeat = seat
+	
+	-- 6. ปีกหลักซ้าย-ขวา ลู่ลม (Wings)
+	local leftWing = Instance.new("WedgePart")
+	leftWing.Size = Vector3.new(11.5, 0.35, 7.5)
+	leftWing.CFrame = mainBody.CFrame * CFrame.new(-7.0, 0.1, 1) * CFrame.Angles(0, math.rad(90), 0)
+	leftWing.Color = Color3.fromRGB(110, 120, 130)
+	leftWing.Material = Enum.Material.SmoothPlastic
+	leftWing.Parent = jetModel
+	weldPart(leftWing, mainBody, true)
+	
+	local rightWing = Instance.new("WedgePart")
+	rightWing.Size = Vector3.new(11.5, 0.35, 7.5)
+	rightWing.CFrame = mainBody.CFrame * CFrame.new(7.0, 0.1, 1) * CFrame.Angles(0, math.rad(-90), 0)
+	rightWing.Color = Color3.fromRGB(110, 120, 130)
+	rightWing.Material = Enum.Material.SmoothPlastic
+	rightWing.Parent = jetModel
+	weldPart(rightWing, mainBody, true)
+	
+	-- 7. หางดิ่งตั้งเอียง (Vertical Tail Fin)
+	local tailFin = Instance.new("WedgePart")
+	tailFin.Size = Vector3.new(0.35, 4.8, 4.5)
+	tailFin.CFrame = mainBody.CFrame * CFrame.new(0, 2.9, 7) * CFrame.Angles(math.rad(-22), 0, 0)
+	tailFin.Color = Color3.fromRGB(100, 110, 120)
+	tailFin.Material = Enum.Material.SmoothPlastic
+	tailFin.Parent = jetModel
+	weldPart(tailFin, mainBody, true)
+	
+	-- 8. แพนหางระดับ (Horizontal Stabilizers)
+	local leftStab = Instance.new("Part")
+	leftStab.Size = Vector3.new(4.2, 0.25, 2.6)
+	leftStab.CFrame = mainBody.CFrame * CFrame.new(-2.6, 0.3, 8)
+	leftStab.Color = Color3.fromRGB(110, 120, 130)
+	leftStab.Material = Enum.Material.SmoothPlastic
+	leftStab.Parent = jetModel
+	weldPart(leftStab, mainBody, true)
+	
+	local rightStab = Instance.new("Part")
+	rightStab.Size = Vector3.new(4.2, 0.25, 2.6)
+	rightStab.CFrame = mainBody.CFrame * CFrame.new(2.6, 0.3, 8)
+	rightStab.Color = Color3.fromRGB(110, 120, 1
