@@ -1,0 +1,303 @@
+-- ==========================================
+-- วางโค้ดนี้ "แค่สคริปต์เดียว" ไว้ที่ ServerScriptService
+-- ==========================================
+
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local insertService = game:GetService("InsertService")
+local starterPlayer = game:GetService("StarterPlayer")
+local starterPlayerScripts = starterPlayer:WaitForChild("StarterPlayerScripts")
+
+-- 1. สร้าง RemoteEvent
+local airplaneEvent = replicatedStorage:FindFirstChild("AirplaneEvent")
+if not airplaneEvent then
+	airplaneEvent = Instance.new("RemoteEvent")
+	airplaneEvent.Name = "AirplaneEvent"
+	airplaneEvent.Parent = replicatedStorage
+end
+
+-- 2. สร้าง LocalScript ฝั่ง Client ให้อัตโนมัติ (เพื่อคุมหน้าต่าง UI, ลากเลื่อน, และปุ่มกด)
+if not starterPlayerScripts:FindFirstChild("AutoPlaneClient") then
+	local clientScript = Instance.new("LocalScript")
+	clientScript.Name = "AutoPlaneClient"
+	clientScript.Source = [[
+		local players = game:GetService("Players")
+		local player = players.LocalPlayer
+		local playerGui = player:WaitForChild("PlayerGui")
+		local replicatedStorage = game:GetService("ReplicatedStorage")
+		local userInputService = game:GetService("UserInputService")
+
+		if playerGui:FindFirstChild("PlaneControlGui") then
+			playerGui.PlaneControlGui:Destroy()
+		end
+
+		local screenGui = Instance.new("ScreenGui")
+		screenGui.Name = "PlaneControlGui"
+		screenGui.ResetOnSpawn = false
+		screenGui.Parent = playerGui
+
+		-- ปุ่มเปิด/ปิดหน้าต่าง UI
+		local toggleBtn = Instance.new("TextButton")
+		toggleBtn.Name = "ToggleBtn"
+		toggleBtn.Size = UDim2.new(0, 110, 0, 40)
+		toggleBtn.Position = UDim2.new(0, 20, 0, 20)
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		toggleBtn.TextSize = 14
+		toggleBtn.Font = Enum.Font.SourceSansBold
+		toggleBtn.Text = "ปิดหน้าต่าง"
+		toggleBtn.Parent = screenGui
+
+		local toggleCorner = Instance.new("UICorner")
+		toggleCorner.CornerRadius = UDim.new(0, 8)
+		toggleCorner.Parent = toggleBtn
+
+		-- หน้าต่างหลัก (MainWindow)
+		local mainWindow = Instance.new("Frame")
+		mainWindow.Name = "MainWindow"
+		mainWindow.Size = UDim2.new(0, 220, 0, 230)
+		mainWindow.Position = UDim2.new(0, 20, 0, 70)
+		mainWindow.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+		mainWindow.BackgroundTransparency = 0.2
+		mainWindow.BorderSizePixel = 0
+		mainWindow.Parent = screenGui
+
+		local mainCorner = Instance.new("UICorner")
+		mainCorner.CornerRadius = UDim.new(0, 10)
+		mainCorner.Parent = mainWindow
+
+		-- ระบบลากเลื่อนหน้าต่าง UI ไปไหนก็ได้อิสระ
+		local dragging, dragStart, startPos
+		mainWindow.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				dragging = true
+				dragStart = input.Position
+				startPos = mainWindow.Position
+				input.Changed:Connect(function()
+					if input.UserInputState == Enum.UserInputState.End then
+						dragging = false
+					end
+				end)
+			end
+		end)
+
+		userInputService.InputChanged:Connect(function(input)
+			if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+				local delta = input.Position - dragStart
+				mainWindow.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			end
+		end)
+
+		-- ปุ่มเรียกเครื่องบิน & ย่อส่วน
+		local startBtn = Instance.new("TextButton")
+		startBtn.Name = "StartBtn"
+		startBtn.Size = UDim2.new(0, 180, 0, 45)
+		startBtn.Position = UDim2.new(0.5, -90, 0, 20)
+		startBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+		startBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		startBtn.TextSize = 15
+		startBtn.Font = Enum.Font.SourceSansBold
+		startBtn.Text = "เรียกเครื่องบิน & ย่อส่วน"
+		startBtn.Parent = mainWindow
+
+		local startCorner = Instance.new("UICorner")
+		startCorner.CornerRadius = UDim.new(0, 8)
+		startCorner.Parent = startBtn
+
+		-- กรอบควบคุมการบิน
+		local flightControls = Instance.new("Frame")
+		flightControls.Name = "FlightControls"
+		flightControls.Size = UDim2.new(0, 180, 0, 140)
+		flightControls.Position = UDim2.new(0.5, -90, 0, 75)
+		flightControls.BackgroundTransparency = 1
+		flightControls.Visible = false
+		flightControls.Parent = mainWindow
+
+		local function createFlightBtn(name, text, posY, color)
+			local btn = Instance.new("TextButton")
+			btn.Name = name
+			btn.Size = UDim2.new(0, 180, 0, 38)
+			btn.Position = UDim2.new(0, 0, 0, posY)
+			btn.BackgroundColor3 = color
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.TextSize = 14
+			btn.Font = Enum.Font.SourceSansBold
+			btn.Text = text
+			btn.Parent = flightControls
+			
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0, 6)
+			c.Parent = btn
+			return btn
+		end
+
+		local upBtn = createFlightBtn("UpBtn", "บินขึ้น (+เอฟเฟกต์ลม)", 0, Color3.fromRGB(46, 204, 113))
+		local downBtn = createFlightBtn("DownBtn", "บินลง", 45, Color3.fromRGB(231, 76, 60))
+		local boostBtn = createFlightBtn("BoostBtn", "บูสต์ความเร็ว", 90, Color3.fromRGB(241, 196, 15))
+
+		local ev = replicatedStorage:WaitForChild("AirplaneEvent", 5)
+
+		-- เปิด/ปิด หน้าต่าง UI
+		local isOpen = true
+		toggleBtn.MouseButton1Click:Connect(function()
+			isOpen = not isOpen
+			mainWindow.Visible = isOpen
+			toggleBtn.Text = isOpen and "ปิดหน้าต่าง" or "เปิดหน้าต่าง"
+		end)
+
+		startBtn.MouseButton1Click:Connect(function()
+			if ev then ev:FireServer("StartProcess") end
+			mainWindow.Visible = false
+			flightControls.Visible = true
+		end)
+
+		upBtn.MouseButton1Click:Connect(function()
+			if ev then ev:FireServer("FlyUp") end
+		end)
+
+		downBtn.MouseButton1Click:Connect(function()
+			if ev then ev:FireServer("FlyDown") end
+		end)
+
+		boostBtn.MouseButton1Click:Connect(function()
+			if ev then ev:FireServer("Boost") end
+		end)
+	]]
+	clientScript.Parent = starterPlayerScripts
+end
+
+-- 3. ระบบ Server (ย่อส่วน, โหลดเครื่องบิน ID 137269111922683 มารับ, เอฟเฟกต์ลม และระบบชนคนปลิว)
+local activePlanes = {}
+
+airplaneEvent.OnServerEvent:Connect(function(player, action)
+	local character = player.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local rootPart = character.HumanoidRootPart
+
+	if action == "StartProcess" then
+		-- ค่อย ๆ ย่อส่วนตัวละคร
+		task.spawn(function()
+			for i = 1, 10 do
+				if character and character.Parent then
+					pcall(function()
+						character:ScaleTo(character:GetScale() * 0.9)
+					end)
+				end
+				task.wait(0.1)
+			end
+		end)
+
+		-- โหลดเครื่องบินจาก Asset ID
+		local success, planeModel = pcall(function()
+			return insertService:LoadAsset(137269111922683)
+		end)
+
+		local plane
+		if success and planeModel then
+			plane = planeModel:GetChildren()[1] or planeModel
+			plane.Parent = workspace
+		else
+			plane = Instance.new("Model")
+			plane.Name = "BackupPlane"
+			local part = Instance.new("Part")
+			part.Size = Vector3.new(6, 2, 10)
+			part.BrickColor = BrickColor.new("Bright blue")
+			part.Parent = plane
+			plane.PrimaryPart = part
+			plane.Parent = workspace
+		end
+
+		plane:PivotTo(rootPart.CFrame + Vector3.new(0, 5, 0))
+
+		local seat = plane:FindFirstChildWhichIsA("Seat", true)
+		if not seat then
+			seat = Instance.new("Seat")
+			seat.Size = Vector3.new(2, 1, 2)
+			seat.CFrame = plane:GetPivot()
+			seat.Parent = plane
+			
+			local firstPart = plane:FindFirstChildWhichIsA("BasePart", true)
+			if firstPart and firstPart ~= seat then
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = seat
+				weld.Part1 = firstPart
+				weld.Parent = seat
+			end
+		end
+
+		if seat and humanoid then
+			seat:Sit(humanoid)
+		end
+
+		local mainPart = plane.PrimaryPart or plane:FindFirstChildWhichIsA("BasePart", true)
+
+		if mainPart then
+			local att = Instance.new("Attachment")
+			att.Name = "WindAttachment"
+			att.Position = Vector3.new(0, -2, 0)
+			att.Parent = mainPart
+
+			local windEmitter = Instance.new("ParticleEmitter")
+			windEmitter.Name = "WindEffect"
+			windEmitter.Texture = "rbxassetid://606348488"
+			windEmitter.Rate = 0
+			windEmitter.Speed = NumberRange.new(30, 45)
+			windEmitter.EmissionDirection = Enum.NormalId.Bottom
+			windEmitter.Size = NumberSequence.new(1.5, 4)
+			windEmitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)})
+			windEmitter.Parent = att
+		end
+
+		for _, part in ipairs(plane:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Touched:Connect(function(hit)
+					local hitChar = hit.Parent
+					local hitHumanoid = hitChar:FindFirstChildOfClass("Humanoid")
+					local hitRoot = hitChar:FindFirstChild("HumanoidRootPart")
+					
+					if hitHumanoid and hitRoot and hitChar ~= character and mainPart then
+						local flingDirection = (hitRoot.Position - mainPart.Position).Unit
+						hitRoot.AssemblyLinearVelocity = (flingDirection * 600) + Vector3.new(0, 400, 0)
+					end
+				end)
+			end
+		end
+
+		activePlanes[player] = {Model = plane, MainPart = mainPart}
+
+	elseif action == "FlyUp" then
+		local data = activePlanes[player]
+		if data and data.MainPart then
+			data.MainPart.AssemblyLinearVelocity = data.MainPart.AssemblyLinearVelocity + Vector3.new(0, 80, 0)
+			
+			local att = data.MainPart:FindFirstChild("WindAttachment")
+			if att and att:FindFirstChild("WindEffect") then
+				att.WindEffect.Rate = 70
+				task.delay(0.6, function()
+					if att and att:FindFirstChild("WindEffect") then
+						att.WindEffect.Rate = 0
+					end
+				end)
+			end
+		end
+
+	elseif action == "FlyDown" then
+		local data = activePlanes[player]
+		if data and data.MainPart then
+			data.MainPart.AssemblyLinearVelocity = data.MainPart.AssemblyLinearVelocity + Vector3.new(0, -70, 0)
+		end
+
+	elseif action == "Boost" then
+		local data = activePlanes[player]
+		if data and data.MainPart then
+			data.MainPart.AssemblyLinearVelocity = data.MainPart.CFrame.LookVector * 250
+		end
+	end
+end)
+
+game.Players.PlayerRemoving:Connect(function(player)
+	if activePlanes[player] and activePlanes[player].Model then
+		activePlanes[player].Model:Destroy()
+		activePlanes[player] = nil
+	end
+end)
