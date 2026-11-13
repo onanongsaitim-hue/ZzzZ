@@ -1,0 +1,64 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local camera = workspace.CurrentCamera
+
+-- ตัวแปรเก็บสถานะ
+local isGearActive = false
+local isFlying = false
+local waistPart = nil
+local backPart = nil
+local currentTool = nil
+local activeProjectile = nil
+local flightConnection = nil
+
+-- ==========================================
+-- 1. สร้างหน้าต่าง UI (รองรับการลากเลื่อน)
+-- ==========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "RemoteBlockUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 240, 0, 140)
+mainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 10)
+uiCorner.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleBar"
+titleLabel.Size = UDim2.new(1, 0, 0, 35)
+titleLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+titleLabel.Text = "ระบบควบคุมบล็อก"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 14
+titleLabel.Active = true
+titleLabel.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = titleLabel
+
+-- ระบบลากเลื่อนหน้าต่าง (รองรับทั้ง Mouse และ Touch บนมือถือ)
+local dragging, dragInput, dragStart, startPos
+
+titleLabel.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		
+		input.Changed:Connect(function()
+			
