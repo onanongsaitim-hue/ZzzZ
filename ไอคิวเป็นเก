@@ -1,0 +1,147 @@
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local insertService = game:GetService("InsertService")
+
+local airplaneEvent = replicatedStorage:FindFirstChild("AirplaneEvent")
+if not airplaneEvent then
+	airplaneEvent = Instance.new("RemoteEvent")
+	airplaneEvent.Name = "AirplaneEvent"
+	airplaneEvent.Parent = replicatedStorage
+end
+
+local activePlanes = {}
+
+airplaneEvent.OnServerEvent:Connect(function(player, action)
+	local character = player.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local rootPart = character.HumanoidRootPart
+
+	if action == "StartProcess" then
+		-- 1. ค่อย ๆ ย่อส่วนตัวละคร
+		task.spawn(function()
+			for i = 1, 10 do
+				if character and character.Parent then
+					character:ScaleTo(character:GetScale() * 0.9)
+				end
+				task.wait(0.1)
+			end
+		end)
+
+		-- 2. โหลดเครื่องบินจาก Asset ID (137269111922683)
+		local success, planeModel = pcall(function()
+			return insertService:LoadAsset(137269111922683)
+		end)
+
+		local plane
+		if success and planeModel then
+			plane = planeModel:GetChildren()[1] or planeModel
+			plane.Parent = workspace
+		else
+			-- ระบบสำรองหากโหลด Asset ไม่ได้
+			plane = Instance.new("Model")
+			plane.Name = "BackupPlane"
+			local part = Instance.new("Part")
+			part.Size = Vector3.new(4, 1, 8)
+			part.Position = rootPart.Position + Vector3.new(0, 10, 0)
+			part.Anchored = false
+			part.Parent = plane
+			plane.PrimaryPart = part
+			plane.Parent = workspace
+		end
+
+		if plane.PrimaryPart then
+			plane:SetPrimaryPartCFrame(rootPart.CFrame + Vector3.new(0, 15, 0))
+		end
+
+		-- เพิ่มเอฟเฟกต์ลมด้านล่างเครื่องบิน (ParticleEmitter)
+		if plane.PrimaryPart then
+			local att = Instance.new("Attachment")
+			att.Name = "WindAttachment"
+			att.Position = Vector3.new(0, -2, 0)
+			att.Parent = plane.PrimaryPart
+
+			local windEmitter = Instance.new("ParticleEmitter")
+			windEmitter.Name = "WindEffect"
+			windEmitter.Texture = "rbxassetid://606348488" -- รูปประกาย/ลมมาตรฐาน Roblox
+			windEmitter.Rate = 0 -- ปิดไว้ก่อน จะเปิดตอนกดบินขึ้น
+			windEmitter.Speed = NumberRange.new(25, 35)
+			windEmitter.EmissionDirection = Enum.NormalId.Bottom
+			windEmitter.Size = NumberSequence.new(1, 3)
+			windEmitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)})
+			windEmitter.Parent = att
+		end
+
+		-- หาที่นั่งหรือสร้าง Seat ให้ผู้เล่นขึ้นไปนั่ง
+		local seat = plane:FindFirstChildWhichIsA("Seat", true)
+		if not seat and plane.PrimaryPart then
+			seat = Instance.new("Seat")
+			seat.Size = Vector3.new(2, 1, 2)
+			seat.CFrame = plane.PrimaryPart.CFrame
+			seat.Parent = plane
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = seat
+			weld.Part1 = plane.PrimaryPart
+			weld.Parent = seat
+		end
+
+		if seat and humanoid then
+			seat:Sit(humanoid)
+		end
+
+		-- 3. ระบบชนคนอื่นกระเด็นออกนอกแมป
+		for _, part in ipairs(plane:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Touched:Connect(function(hit)
+					local hitChar = hit.Parent
+					local hitHumanoid = hitChar:FindFirstChildOfClass("Humanoid")
+					local hitRoot = hitChar:FindFirstChild("HumanoidRootPart")
+					
+					-- ถ้าชนตัวละครอื่นที่ไม่ใช่ตัวเราเอง
+					if hitHumanoid and hitRoot and hitChar ~= character then
+						-- ดัน/ซัดกระเด็นออกนอกแมปด้วยความเร็วสูงมากขึ้นฟ้าและพุ่งออกไป
+						local flingDirection = (hitRoot.Position - plane.PrimaryPart.Position).Unit
+						hitRoot.AssemblyLinearVelocity = (flingDirection * 400) + Vector3.new(0, 300, 0)
+					end
+				end)
+			end
+		end
+
+		activePlanes[player] = plane
+
+	elseif action == "FlyUp" then
+		local plane = activePlanes[player]
+		if plane and plane.PrimaryPart then
+			plane.PrimaryPart.AssemblyLinearVelocity = plane.PrimaryPart.AssemblyLinearVelocity + Vector3.new(0, 60, 0)
+			
+			-- เปิดเอฟเฟกต์ลมพุ่งชั่วขณะ
+			local att = plane.PrimaryPart:FindFirstChild("WindAttachment")
+			if att and att:FindFirstChild("WindEffect") then
+				att.WindEffect.Rate = 50
+				task.delay(0.5, function()
+					if att and att:FindFirstChild("WindEffect") then
+						att.WindEffect.Rate = 0
+					end
+				end)
+			end
+		end
+
+	elseif action == "FlyDown" then
+		local plane = activePlanes[player]
+		if plane and plane.PrimaryPart then
+			plane.PrimaryPart.AssemblyLinearVelocity = plane.PrimaryPart.AssemblyLinearVelocity + Vector3.new(0, -50, 0)
+		end
+
+	elseif action == "Boost" then
+		local plane = activePlanes[player]
+		if plane and plane.PrimaryPart then
+			plane.PrimaryPart.AssemblyLinearVelocity = plane.PrimaryPart.CFrame.LookVector * 180
+		end
+	end
+end)
+
+game.Players.PlayerRemoving:Connect(function(player)
+	if activePlanes[player] then
+		activePlanes[player]:Destroy()
+		activePlanes[player] = nil
+	end
+end)
