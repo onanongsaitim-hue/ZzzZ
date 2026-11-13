@@ -1,0 +1,315 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- สร้าง ScreenGui (ResetOnSpawn = false เพื่อไม่ให้หายตอนตาย)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "F16AdvancedControlGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- ปุ่มเปิด/ปิด เมนูหลัก
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 150, 0, 45)
+toggleButton.Position = UDim2.new(0, 20, 0, 20)
+toggleButton.Text = "✈️ ควบคุม F-16"
+toggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 15
+toggleButton.Parent = screenGui
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = toggleButton
+
+-- หน้าต่างหลัก (UI Window)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 280, 0, 420)
+mainFrame.Position = UDim2.new(0.5, -140, 0.5, -210)
+mainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 12)
+frameCorner.Parent = mainFrame
+
+-- หัวข้อหน้าต่าง (ใช้สำหรับลาก)
+local titleBar = Instance.new("TextLabel")
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+titleBar.Text = "ระบบขับเคลื่อน F-16"
+titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.Font = Enum.Font.GothamBold
+titleBar.TextSize = 16
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = titleBar
+
+-- ปุ่มกดเรียก F-16
+local spawnButton = Instance.new("TextButton")
+spawnButton.Size = UDim2.new(0, 240, 0, 40)
+spawnButton.Position = UDim2.new(0.5, -120, 0, 50)
+spawnButton.Text = "🚀 เรียก F-16 ลงมาจากฟ้า"
+spawnButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+spawnButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+spawnButton.Font = Enum.Font.GothamBold
+spawnButton.TextSize = 14
+spawnButton.Parent = mainFrame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.Parent = spawnButton
+
+-- แสดงสถานะความเร็ว
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(0, 240, 0, 30)
+speedLabel.Position = UDim2.new(0.5, -120, 0, 95)
+speedLabel.Text = "ความเร็ว: 0 | สูงสุด: 100"
+speedLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextSize = 13
+speedLabel.Parent = mainFrame
+
+local speedCorner = Instance.new("UICorner")
+speedCorner.CornerRadius = UDim.new(0, 6)
+speedCorner.Parent = speedLabel
+
+-- ปุ่มปรับความเร็ว (+ / -)
+local speedUpBtn = Instance.new("TextButton")
+speedUpBtn.Size = UDim2.new(0, 115, 0, 35)
+speedUpBtn.Position = UDim2.new(0.5, -120, 0, 130)
+speedUpBtn.Text = "➕ เพิ่มความเร็ว"
+speedUpBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+speedUpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedUpBtn.Font = Enum.Font.GothamBold
+speedUpBtn.TextSize = 13
+speedUpBtn.Parent = mainFrame
+Instance.new("UICorner", speedUpBtn).CornerRadius = UDim.new(0, 6)
+
+local speedDownBtn = Instance.new("TextButton")
+speedDownBtn.Size = UDim2.new(0, 115, 0, 35)
+speedDownBtn.Position = UDim2.new(0.5, 5, 0, 130)
+speedDownBtn.Text = "➖ ลดความเร็ว"
+speedDownBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+speedDownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedDownBtn.Font = Enum.Font.GothamBold
+speedDownBtn.TextSize = 13
+speedDownBtn.Parent = mainFrame
+Instance.new("UICorner", speedDownBtn).CornerRadius = UDim.new(0, 6)
+
+-- ฟังก์ชันสร้างปุ่มควบคุมทิศทาง
+local function createControlBtn(name, text, posX, posY, color)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0, 115, 0, 40)
+	btn.Position = UDim2.new(0.5, posX, 0, posY)
+	btn.Text = text
+	btn.BackgroundColor3 = color
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 13
+	btn.Parent = mainFrame
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	return btn
+end
+
+-- ปุ่มควบคุม (เดินหน้า, ถอยหลัง, เลี้ยวซ้าย, เลี้ยวขวา, ขึ้น, ลง)
+local forwardBtn = createControlBtn("ForwardBtn", "⬆️ เดินหน้า", -120, 175, Color3.fromRGB(60, 60, 60))
+local backwardBtn = createControlBtn("BackwardBtn", "⬇️ ถอยหลัง", 5, 175, Color3.fromRGB(60, 60, 60))
+local leftBtn = createControlBtn("LeftBtn", "⬅️ เลี้ยวซ้าย", -120, 220, Color3.fromRGB(60, 60, 60))
+local rightBtn = createControlBtn("RightBtn", "➡️ เลี้ยวขวา", 5, 220, Color3.fromRGB(60, 60, 60))
+local upBtn = createControlBtn("UpBtn", "🔼 บินขึ้น", -120, 265, Color3.fromRGB(60, 60, 60))
+local downBtn = createControlBtn("DownBtn", "🔽 บินลง", 5, 265, Color3.fromRGB(60, 60, 60))
+
+-- ปุ่มหยุดเครื่องบิน / ทำลาย
+local stopBtn = Instance.new("TextButton")
+stopBtn.Size = UDim2.new(0, 240, 0, 40)
+stopBtn.Position = UDim2.new(0.5, -120, 0, 315)
+stopBtn.Text = "🛑 ยกเลิก/ลบเครื่องบิน"
+stopBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+stopBtn.Font = Enum.Font.GothamBold
+stopBtn.TextSize = 13
+stopBtn.Parent = mainFrame
+Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
+
+-- ระบบเปิด/ปิด หน้าต่าง UI
+toggleButton.MouseButton1Click:Connect(function()
+	mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- ระบบลากหน้าต่าง (Draggable UI)
+local dragging, dragInput, dragStart, startPos
+titleBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if dragging and dragInput then
+		local delta = dragInput.Position - dragStart
+		mainFrame.Position = UDim2.new(
+			startPos.X.Scale, 
+			startPos.X.Offset + delta.X, 
+			startPos.Y.Scale, 
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- ตัวแปรควบคุมการบินของ F-16
+local activeJet = nil
+local currentSpeed = 30
+local maxSpeed = 100
+local moveDir = Vector3.new(0, 0, 0)
+local turnAngle = 0
+local altChange = 0
+
+-- ตัวแปรรับค่าปุ่มกดค้าง
+local isMovingForward, isMovingBackward = false, false
+local isTurningLeft, isTurningRight = false, false
+local isGoingUp, isGoingDown = false, false
+
+-- ฟังก์ชันสร้างและควบคุม F-16
+spawnButton.MouseButton1Click:Connect(function()
+	if activeJet then activeJet:Destroy() end
+	
+	local character = player.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+	
+	local targetPos = character.HumanoidRootPart.Position
+	local spawnPos = targetPos + Vector3.new(0, 200, 0)
+	
+	-- สร้างโมเดลเครื่องบิน F-16
+	local jetModel = Instance.new("Model")
+	jetModel.Name = "ControlledF16"
+	jetModel.Parent = workspace
+	
+	local fuselage = Instance.new("Part")
+	fuselage.Size = Vector3.new(3, 3, 16)
+	fuselage.Position = spawnPos
+	fuselage.CFrame = CFrame.new(spawnPos)
+	fuselage.Color = Color3.fromRGB(100, 110, 120)
+	fuselage.Material = Enum.Material.SmoothPlastic
+	fuselage.Anchored = true
+	fuselage.CanCollide = false
+	fuselage.Parent = jetModel
+	
+	local wings = Instance.new("Part")
+	wings.Size = Vector3.new(12, 0.4, 6)
+	wings.CFrame = fuselage.CFrame
+	wings.Color = Color3.fromRGB(90, 100, 110)
+	wings.Material = Enum.Material.SmoothPlastic
+	wings.Anchored = true
+	wings.CanCollide = false
+	wings.Parent = jetModel
+	
+	-- เอฟเฟกต์ลม/ไอพ่นใต้เครื่องบิน
+	local windEffect = Instance.new("ParticleEmitter")
+	windEffect.Name = "WindEffect"
+	windEffect.Color = ColorSequence.new(Color3.fromRGB(220, 240, 255))
+	windEffect.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 2), NumberSequenceKeypoint.new(1, 6)})
+	windEffect.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)})
+	windEffect.Lifetime = NumberRange.new(0.5, 1)
+	windEffect.Rate = 120
+	windEffect.Speed = NumberRange.new(5, 10)
+	windEffect.Parent = fuselage
+	
+	activeJet = jetModel
+	currentSpeed = 40
+	
+	local currentCF = fuselage.CFrame
+	
+	-- ลูปการควบคุมการเคลื่อนไหวของเครื่องบินแบบเรียลไทม์
+	local connection
+	connection = RunService.RenderStepped:Connect(function(dt)
+		if not fuselage or not fuselage.Parent then
+			if connection then connection:Disconnect() end
+			return
+		end
+		
+		-- คำนวณการเลี้ยว (Yaw)
+		local turnSpeed = 1.5 * dt
+		if isTurningLeft then currentCF = currentCF * CFrame.Angles(0, turnSpeed, 0) end
+		if isTurningRight then currentCF = currentCF * CFrame.Angles(0, -turnSpeed, 0) end
+		
+		-- คำนวณการขึ้น/ลง (Altitude)
+		local altSpeed = 25 * dt
+		local verticalOffset = 0
+		if isGoingUp then verticalOffset = altSpeed end
+		if isGoingDown then verticalOffset = -altSpeed end
+		
+		-- คำนวณการเดินหน้า/ถอยหลัง
+		local moveSpeed = currentSpeed * dt
+		local forwardVal = 0
+		if isMovingForward then forwardVal = -moveSpeed end
+		if isMovingBackward then forwardVal = moveSpeed end
+		
+		-- ขยับตำแหน่ง CFrame
+		currentCF = currentCF + (currentCF.LookVector * forwardVal) + Vector3.new(0, verticalOffset, 0)
+		fuselage.CFrame = currentCF
+		wings.CFrame = currentCF
+		
+		speedLabel.Text = "ความเร็ว: " .. math.floor(currentSpeed) .. " | สูงสุด: " .. maxSpeed
+	end)
+end)
+
+-- ผูกเหตุการณ์กดปุ่มเพิ่ม/ลดความเร็ว
+speedUpBtn.MouseButton1Click:Connect(function()
+	currentSpeed = math.min(currentSpeed + 10, maxSpeed)
+end)
+
+speedDownBtn.MouseButton1Click:Connect(function()
+	currentSpeed = math.max(currentSpeed - 10, 0)
+end)
+
+-- ระบบกดค้างเพื่อบังคับทิศทาง
+local function bindHoldButton(button, startAction, endAction)
+	button.MouseButton1Down:Connect(startAction)
+	button.MouseButton1Up:Connect(endAction)
+	button.MouseLeave:Connect(endAction)
+	button.TouchTap:Connect(function()
+		startAction()
+		task.delay(0.2, endAction)
+	end)
+end
+
+bindHoldButton(forwardBtn, function() isMovingForward = true end, function() isMovingForward = false end)
+bindHoldButton(backwardBtn, function() isMovingBackward = true end, function() isMovingBackward = false end)
+bindHoldButton(leftBtn, function() isTurningLeft = true end, function() isTurningLeft = false end)
+bindHoldButton(rightBtn, function() isTurningRight = true end, function() isTurningRight = false end)
+bindHoldButton(upBtn, function() isGoingUp = true end, function() isGoingUp = false end)
+bindHoldButton(downBtn, function() isGoingDown = true end, function() isGoingDown = false end)
+
+stopBtn.MouseButton1Click:Connect(function()
+	if activeJet then
+		activeJet:Destroy()
+		activeJet = nil
+		speedLabel.Text = "ความเร็ว: 0 | ปิดการใช้งาน"
+	end
+end)
