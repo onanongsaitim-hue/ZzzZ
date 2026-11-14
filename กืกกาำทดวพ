@@ -1,0 +1,468 @@
+-- Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ลบ UI เก่า (ถ้ามี)
+if playerGui:FindFirstChild("CyberpunkBoostSystem") then
+	playerGui.CyberpunkBoostSystem:Destroy()
+end
+
+-- สร้าง ScreenGui หลัก
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CyberpunkBoostSystem"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = playerGui
+
+-- ==========================================
+-- 1. หน้าต่าง UI หลัก (ขยับได้ + ปิดได้)
+-- ==========================================
+local mainWindow = Instance.new("Frame")
+mainWindow.Name = "MainWindow"
+mainWindow.Size = UDim2.new(0, 360, 0, 220)
+mainWindow.Position = UDim2.new(0.5, -180, 0.5, -110)
+mainWindow.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+mainWindow.BorderSizePixel = 0
+mainWindow.Active = true
+mainWindow.ZIndex = 2
+mainWindow.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner", mainWindow)
+mainCorner.CornerRadius = UDim.new(0, 12)
+
+local mainStroke = Instance.new("UIStroke", mainWindow)
+mainStroke.Color = Color3.fromRGB(0, 255, 128)
+mainStroke.Thickness = 2
+
+-- แถบหัวข้อหลัก (คลิกลากได้)
+local topBar = Instance.new("Frame")
+topBar.Name = "TopBar"
+topBar.Size = UDim2.new(1, 0, 0, 42)
+topBar.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+topBar.BorderSizePixel = 0
+topBar.Active = true
+topBar.ZIndex = 3
+topBar.Parent = mainWindow
+
+local topBarCorner = Instance.new("UICorner", topBar)
+topBarCorner.CornerRadius = UDim.new(0, 12)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -50, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ CYBERPUNK SPEED SYSTEM"
+titleLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
+titleLabel.TextSize = 15
+titleLabel.Font = Enum.Font.Code
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 4
+titleLabel.Parent = topBar
+
+-- ปุ่มปิดหน้าต่างหลัก (X)
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -36, 0, 6)
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 14
+closeButton.Font = Enum.Font.Bold
+closeButton.ZIndex = 5
+closeButton.Parent = topBar
+
+local closeCorner = Instance.new("UICorner", closeButton)
+closeCorner.CornerRadius = UDim.new(0, 6)
+
+-- ปุ่ม "บูสต์ความเร็ว" ในหน้าต่างหลัก
+local boostMenuBtn = Instance.new("TextButton")
+boostMenuBtn.Size = UDim2.new(0, 300, 0, 70)
+boostMenuBtn.Position = UDim2.new(0.5, -150, 0, 88)
+boostMenuBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+boostMenuBtn.Text = "🚀 บูสต์ความเร็ว"
+boostMenuBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+boostMenuBtn.TextSize = 22
+boostMenuBtn.Font = Enum.Font.GothamBold
+boostMenuBtn.ZIndex = 3
+boostMenuBtn.Parent = mainWindow
+
+local btnCorner = Instance.new("UICorner", boostMenuBtn)
+btnCorner.CornerRadius = UDim.new(0, 10)
+
+local btnStroke = Instance.new("UIStroke", boostMenuBtn)
+btnStroke.Color = Color3.fromRGB(0, 255, 255)
+btnStroke.Thickness = 2
+
+
+-- ==========================================
+-- 2. หน้าต่างลอย Floating HUD (ขยับได้ + ปิดได้)
+-- ==========================================
+local floatHud = Instance.new("Frame")
+floatHud.Name = "FloatingHUD"
+floatHud.Size = UDim2.new(0, 265, 0, 220)
+floatHud.Position = UDim2.new(1, -285, 0.15, 0)
+floatHud.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+floatHud.BackgroundTransparency = 0.1
+floatHud.BorderSizePixel = 0
+floatHud.Active = true
+floatHud.Visible = false
+floatHud.ZIndex = 10
+floatHud.Parent = screenGui
+
+local floatCorner = Instance.new("UICorner", floatHud)
+floatCorner.CornerRadius = UDim.new(0, 12)
+
+-- กรอบไซเบอร์พังค์ขีดสายรุ้ง
+local floatStroke = Instance.new("UIStroke", floatHud)
+floatStroke.Thickness = 3
+local floatGradient = Instance.new("UIGradient", floatStroke)
+floatGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 128)),
+	ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 0, 128)),
+	ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 255, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 0))
+})
+
+-- แถบหัวข้อ Floating HUD (คลิกลากได้)
+local floatTopBar = Instance.new("Frame")
+floatTopBar.Name = "FloatTopBar"
+floatTopBar.Size = UDim2.new(1, 0, 0, 40)
+floatTopBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+floatTopBar.BorderSizePixel = 0
+floatTopBar.Active = true
+floatTopBar.ZIndex = 11
+floatTopBar.Parent = floatHud
+
+local floatTopCorner = Instance.new("UICorner", floatTopBar)
+floatTopCorner.CornerRadius = UDim.new(0, 12)
+
+local floatTitle = Instance.new("TextLabel")
+floatTitle.Size = UDim2.new(1, -45, 1, 0)
+floatTitle.Position = UDim2.new(0, 10, 0, 0)
+floatTitle.BackgroundTransparency = 1
+floatTitle.Text = "🎮 บูสต์วิ่ง (มีถึงเวล 3)"
+floatTitle.TextColor3 = Color3.fromRGB(0, 255, 128)
+floatTitle.TextSize = 13
+floatTitle.Font = Enum.Font.Code
+floatTitle.TextXAlignment = Enum.TextXAlignment.Left
+floatTitle.ZIndex = 12
+floatTitle.Parent = floatTopBar
+
+-- ปุ่มปิด Floating HUD (X)
+local floatCloseBtn = Instance.new("TextButton")
+floatCloseBtn.Size = UDim2.new(0, 30, 0, 30)
+floatCloseBtn.Position = UDim2.new(1, -35, 0, 5)
+floatCloseBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+floatCloseBtn.Text = "X"
+floatCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+floatCloseBtn.TextSize = 14
+floatCloseBtn.Font = Enum.Font.Bold
+floatCloseBtn.ZIndex = 13
+floatCloseBtn.Parent = floatTopBar
+
+local floatCloseCorner = Instance.new("UICorner", floatCloseBtn)
+floatCloseCorner.CornerRadius = UDim.new(0, 6)
+
+-- ฟังก์ชันสร้างปุ่มเลือกเลเวล
+local function createLevelBtn(name, posY)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 235, 0, 42)
+	btn.Position = UDim2.new(0.5, -117, 0, posY)
+	btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+	btn.Text = name
+	btn.TextColor3 = Color3.fromRGB(0, 255, 128)
+	btn.TextSize = 13
+	btn.Font = Enum.Font.GothamBold
+	btn.ZIndex = 11
+	btn.Parent = floatHud
+
+	local c = Instance.new("UICorner", btn)
+	c.CornerRadius = UDim.new(0, 8)
+	local s = Instance.new("UIStroke", btn)
+	s.Color = Color3.fromRGB(0, 255, 128)
+	s.Thickness = 1
+
+	return btn, s
+end
+
+local btnLvl1, stroke1 = createLevelBtn("⚡ เวล 1 (เร็ว 100 + เงาสายรุ้ง)", 50)
+local btnLvl2, stroke2 = createLevelBtn("⚡⚡ เวล 2 (เร็ว 200 + ตารวน)", 100)
+local btnLvl3, stroke3 = createLevelBtn("⚡⚡⚡ เวล 3 (เร็ว 800 + เงาค้าง 2 วิ)", 150)
+
+
+-- ==========================================
+-- 3. ระบบลากหน้าต่าง (เสถียร 100% ไม่หลุดมือ)
+-- ==========================================
+local function makeDraggable(dragHandle, targetFrame)
+	local dragging = false
+	local dragStart = Vector2.new()
+	local startPos = UDim2.new()
+
+	dragHandle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = Vector2.new(input.Position.X, input.Position.Y)
+			startPos = targetFrame.Position
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStart
+			targetFrame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
+makeDraggable(topBar, mainWindow)
+makeDraggable(floatTopBar, floatHud)
+
+
+-- ==========================================
+-- 4. ระบบเอฟเฟกต์ความเร็ว, เงาสายรุ้ง และกริต
+-- ==========================================
+local currentLevel = 0
+local originalNeckC0 = nil
+local originalRootC0 = nil
+local activeClones = 0
+local MAX_CLONES = 25
+
+-- เอฟเฟกต์โลกสีเทา
+local colorCorrection = Lighting:FindFirstChild("CyberpunkCC") or Instance.new("ColorCorrectionEffect")
+colorCorrection.Name = "CyberpunkCC"
+colorCorrection.Parent = Lighting
+colorCorrection.Enabled = false
+colorCorrection.Saturation = -1
+
+-- โฟลเดอร์เก็บเงาใน Workspace (กันรก)
+local cloneFolder = workspace:FindFirstChild("CyberpunkClones") or Instance.new("Folder")
+cloneFolder.Name = "CyberpunkClones"
+cloneFolder.Parent = workspace
+
+-- ฟังก์ชันหาข้อต่อตัวละครและรีเซ็ตท่าทางให้ปกติ
+local function getJoints(char)
+	local neck = char:FindFirstChild("Neck", true)
+	local rootJoint = char:FindFirstChild("RootJoint", true) or char:FindFirstChild("Root", true)
+	if neck and not originalNeckC0 then
+		originalNeckC0 = neck.C0
+	end
+	if rootJoint and not originalRootC0 then
+		originalRootC0 = rootJoint.C0
+	end
+	return neck, rootJoint
+end
+
+local function resetCharacterVisuals()
+	local char = player.Character
+	if not char then return end
+	local neck, rootJoint = getJoints(char)
+	if neck and originalNeckC0 then
+		neck.C0 = originalNeckC0
+	end
+	if rootJoint and originalRootC0 then
+		rootJoint.C0 = originalRootC0
+	end
+	local oldHighlight = char:FindFirstChild("GlitchHighlight")
+	if oldHighlight then
+		oldHighlight:Destroy()
+	end
+end
+
+-- อัปเดตสีปุ่มที่กำลังเลือกอยู่
+local function updateButtonHighlight(lvl)
+	local buttons = {
+		{btn = btnLvl1, stroke = stroke1, id = 1},
+		{btn = btnLvl2, stroke = stroke2, id = 2},
+		{btn = btnLvl3, stroke = stroke3, id = 3},
+	}
+	for _, item in ipairs(buttons) do
+		if item.id == lvl then
+			item.btn.BackgroundColor3 = Color3.fromRGB(0, 70, 50)
+			item.stroke.Thickness = 2
+		else
+			item.btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+			item.stroke.Thickness = 1
+		end
+	end
+end
+
+local function setBoostLevel(lvl)
+	currentLevel = lvl
+	updateButtonHighlight(lvl)
+	resetCharacterVisuals()
+
+	local char = player.Character
+	if not char then return end
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+
+	if lvl == 0 then
+		humanoid.WalkSpeed = 16
+		colorCorrection.Enabled = false
+	elseif lvl == 1 then
+		humanoid.WalkSpeed = 100
+		colorCorrection.Enabled = true
+	elseif lvl == 2 then
+		humanoid.WalkSpeed = 200
+		colorCorrection.Enabled = true
+	elseif lvl == 3 then
+		humanoid.WalkSpeed = 800
+		colorCorrection.Enabled = true
+	end
+end
+
+-- การทำงานของปุ่มต่างๆ
+closeButton.MouseButton1Click:Connect(function()
+	mainWindow.Visible = false
+end)
+
+boostMenuBtn.MouseButton1Click:Connect(function()
+	mainWindow.Visible = false
+	floatHud.Visible = true
+	setBoostLevel(1)
+end)
+
+floatCloseBtn.MouseButton1Click:Connect(function()
+	floatHud.Visible = false
+	setBoostLevel(0)
+	cloneFolder:ClearAllChildren()
+	activeClones = 0
+end)
+
+btnLvl1.MouseButton1Click:Connect(function() setBoostLevel(1) end)
+btnLvl2.MouseButton1Click:Connect(function() setBoostLevel(2) end)
+btnLvl3.MouseButton1Click:Connect(function() setBoostLevel(3) end)
+
+-- รีเซ็ตค่าอัตโนมัติเมื่อเกิดใหม่
+player.CharacterAdded:Connect(function()
+	originalNeckC0 = nil
+	originalRootC0 = nil
+	activeClones = 0
+	cloneFolder:ClearAllChildren()
+	setBoostLevel(0)
+	floatHud.Visible = false
+	mainWindow.Visible = true
+end)
+
+-- ลูปแสดงผลหลัก
+local hueTimer = 0.33 -- เริ่มต้นที่สีเขียว
+local lastCloneTick = 0
+
+RunService.RenderStepped:Connect(function(dt)
+	if currentLevel <= 0 then return end
+
+	-- ไล่เฉดสีสายรุ้งจากสีเขียววนไปเรื่อยๆ
+	hueTimer = (hueTimer + dt * 1.2) % 1
+	floatGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromHSV(hueTimer, 1, 1)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromHSV((hueTimer + 0.5) % 1, 1, 1)),
+		ColorSequenceKeypoint.new(1, Color3.fromHSV(hueTimer, 1, 1))
+	})
+
+	local char = player.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+	local root = char.HumanoidRootPart
+
+	-- 1. สร้างเงาตัวละครสีสายรุ้งตามหลังเวลาวิ่ง
+	local spawnInterval = (currentLevel == 3) and 0.08 or 0.14
+	if root.AssemblyLinearVelocity.Magnitude > 15 and (tick() - lastCloneTick > spawnInterval) and activeClones < MAX_CLONES then
+		lastCloneTick = tick()
+		activeClones += 1
+
+		local cloneColor = Color3.fromHSV(hueTimer, 1, 1)
+
+		char.Archivable = true
+		local clone = char:Clone()
+		char.Archivable = false
+
+		local partsToFade = {}
+		for _, obj in ipairs(clone:GetDescendants()) do
+			if obj:IsA("BasePart") then
+				obj.Anchored = true
+				obj.CanCollide = false
+				obj.CanQuery = false
+				obj.CanTouch = false
+				obj.Material = Enum.Material.Neon
+				obj.Color = cloneColor
+				obj.Transparency = 0.35
+				table.insert(partsToFade, obj)
+			elseif obj:IsA("Decal") or obj:IsA("Texture") then
+				obj.Transparency = 0.5
+				table.insert(partsToFade, obj)
+			elseif obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("Humanoid") or obj:IsA("Sound") or obj:IsA("BillboardGui") then
+				obj:Destroy()
+			end
+		end
+
+		clone.Parent = cloneFolder
+
+		-- เวล 3 ค้างนิ่งไว้ 2 วินาที / เวล 1-2 ค้างไว้ 0.6 วินาที แล้วค่อยๆ จางหายทั้งตัว
+		local holdTime = (currentLevel == 3) and 2 or 0.6
+		task.delay(holdTime, function()
+			if clone and clone.Parent then
+				for _, p in ipairs(partsToFade) do
+					if p and p.Parent then
+						TweenService:Create(p, TweenInfo.new(0.4), {Transparency = 1}):Play()
+					end
+				end
+				task.wait(0.4)
+				if clone then
+					clone:Destroy()
+				end
+			end
+			activeClones = math.max(0, activeClones - 1)
+		end)
+	end
+
+	-- 2. เอฟเฟกต์กริต (Glitch) หัวสั่น / ตารวน / ตัวรวน (ปลอดภัย หัวไม่หลุด)
+	local neck, rootJoint = getJoints(char)
+	if currentLevel == 2 then
+		-- เวล 2: หัวและตาสั่นรัวๆ
+		if neck and originalNeckC0 then
+			local rx = math.rad(math.random(-15, 15))
+			local ry = math.rad(math.random(-20, 20))
+			local offset = Vector3.new(math.random(-10, 10) * 0.015, math.random(-10, 10) * 0.015, 0)
+			neck.C0 = originalNeckC0 * CFrame.new(offset) * CFrame.Angles(rx, ry, 0)
+		end
+	elseif currentLevel == 3 then
+		-- เวล 3: หัวและร่างกายติดกริตหนัก + มีแสงกริตเขียว-สายรุ้งกระพริบที่ตัว
+		if neck and originalNeckC0 then
+			local rx = math.rad(math.random(-35, 35))
+			local ry = math.rad(math.random(-45, 45))
+			local rz = math.rad(math.random(-25, 25))
+			local offset = Vector3.new(math.random(-10, 10) * 0.04, math.random(-10, 10) * 0.04, math.random(-10, 10) * 0.04)
+			neck.C0 = originalNeckC0 * CFrame.new(offset) * CFrame.Angles(rx, ry, rz)
+		end
+		if rootJoint and originalRootC0 then
+			local bodyOffset = Vector3.new(math.random(-10, 10) * 0.03, 0, math.random(-10, 10) * 0.03)
+			rootJoint.C0 = originalRootC0 * CFrame.new(bodyOffset)
+		end
+
+		-- แสงกริตเขียว/สายรุ้งกระพริบรอบตัว
+		local hl = char:FindFirstChild("GlitchHighlight") or Instance.new("Highlight")
+		hl.Name = "GlitchHighlight"
+		hl.Adornee = char
+		hl.FillColor = Color3.fromHSV(hueTimer, 1, 1)
+		hl.OutlineColor = Color3.fromRGB(0, 255, 128)
+		hl.FillTransparency = (math.random() > 0.5) and 0.4 or 0.85
+		hl.OutlineTransparency = 0
+		hl.Parent = char
+	end
+end)
