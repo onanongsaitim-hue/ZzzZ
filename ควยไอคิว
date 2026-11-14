@@ -1,0 +1,364 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- ตัวแปรเก็บสถานะ
+local isFlying = false
+local isBoosting = false
+local waistPart = nil
+local backModel = nil
+local currentTool = nil
+local activeProjectile = nil
+local flightConnection = nil
+
+-- ==========================================
+-- 1. สร้างปุ่มเรียกเครื่องบินกลับบนหน้าจอ (แสดงเฉพาะตอนบิน)
+-- ==========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AirplaneHUD"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local recallBtn = Instance.new("TextButton")
+recallBtn.Size = UDim2.new(0, 120, 0, 45)
+recallBtn.Position = UDim2.new(0.5, -60, 0.85, 0)
+recallBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+recallBtn.Text = "🔄 เรียกเครื่องบินกลับ"
+recallBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+recallBtn.Font = Enum.Font.GothamBold
+recallBtn.TextSize = 13
+recallBtn.Visible = false
+recallBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+recallBtn.Parent = recallBtn
+
+-- ==========================================
+-- 2. ฟังก์ชันโหลดโมเดลเครื่องบินและย่อขนาด (ID 9135848672)
+-- ==========================================
+local function loadToyAirplane()
+	local success, result = pcall(function()
+		local objs = game:GetObjects("rbxassetid://9135848672")
+		if objs and #objs > 0 then
+			return objs[1]
+		end
+	end)
+	
+	local model
+	if success and result then
+		if result:IsA("Model") then
+			model = result
+		elseif result:IsA("BasePart") then
+			model = Instance.new("Model")
+			result.Parent = model
+			model.PrimaryPart = result
+		end
+	else
+		-- Fallback สำรอง
+		model = Instance.new("Model")
+		local part = Instance.new("Part")
+		part.Size = Vector3.new(1, 0.4, 2)
+		part.Color = Color3.fromRGB(150, 150, 150)
+		part.Parent = model
+		model.PrimaryPart = part
+	end
+
+	-- ทำให้เครื่องบินมีขนาดเล็กเหมือนของเล่น
+	if not model.PrimaryPart then
+		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart")
+	end
+	
+	if model.PrimaryPart then
+		model:ScaleTo(0.25) -- ย่อขนาดลงเหลือ 25% ให้เป็นเครื่องบินของเล่นตัวเล็ก
+	end
+
+	return model
+end
+
+-- ==========================================
+-- 3. ฟังก์ชันสร้างโมเดลติดตัวละคร (เอสดำ + หลังเครื่องบินของเล่น)
+-- ==========================================
+local function attachParts(character)
+	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+	if not torso then return end
+
+	if waistPart then waistPart:Destroy() end
+	if backModel then backModel:Destroy() end
+
+	-- ก้อนสี่เหลี่ยมสีดำที่ข้างเอวด้านขวา
+	waistPart = Instance.new("Part")
+	waistPart.Name = "WaistBlackBlock"
+	waistPart.Size = Vector3.new(0.5, 0.5, 1.0)
+	waistPart.Color = Color3.fromRGB(20, 20, 20)
+	waistPart.Material = Enum.Material.SmoothPlastic
+	waistPart.CanCollide = false
+	waistPart.Massless = true
+	waistPart.Parent = character
+
+	local waistWeld = Instance.new("Weld")
+	waistWeld.Part0 = torso
+	waistWeld.Part1 = waistPart
+	waistWeld.C0 = CFrame.new(1.0, -0.7, 0)
+	waistWeld.Parent = waistPart
+
+	-- เครื่องบินของเล่นที่หลัง
+	backModel = loadToyAirplane()
+	backModel.Name = "BackToyAirplane"
+	backModel.Parent = character
+
+	local primaryPart = backModel.PrimaryPart
+	if primaryPart then
+		for _, part in ipairs(backModel:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = false
+				part.Massless = true
+			end
+		end
+
+		local backWeld = Instance.new("Weld")
+		backWeld.Part0 = torso
+		backWeld.Part1 = primaryPart
+		backWeld.C0 = CFrame.new(0, 0.2, 0.7) * CFrame.Angles(math.rad(90), 0, 0)
+		backWeld.Parent = primaryPart
+	end
+end
+
+-- Forward declarations
+local stopControllingAirplane
+local launchAirplane
+
+-- ==========================================
+-- 4. ฟังก์ชันการบิน (เลี้ยวซ้ายเอียงซ้าย, เลี้ยวขวาเอียงขวา, มุมกล้องสูง)
+-- ==========================================
+launchAirplane = function()
+	if isFlying then return end
+	local character = player.Character
+	if not character then return end
+	
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	local handle = currentTool and currentTool:FindFirstChild("Handle")
+	if not humanoid or not rootPart or not handle then return end
+
+	isFlying = true
+	handle.Transparency = 1
+	rootPart.Anchored = true
+	recallBtn.Visible = true
+
+	-- สร้างเครื่องบินสำหรับบิน
+	activeProjectile = loadToyAirplane()
+	activeProjectile.Name = "FlyingToyAirplane"
+	activeProjectile.Parent = workspace
+
+	local projPrimary = activeProjectile.PrimaryPart
+	if not projPrimary then
+		stopControllingAirplane()
+		return
+	end
+
+	for _, part in ipairs(activeProjectile:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = true
+			part.Anchored = true
+		end
+	end
+
+	local startCFrame = handle.CFrame * CFrame.new(0, 0, -2)
+	activeProjectile:SetPrimaryPartCFrame(startCFrame)
+
+	camera.CameraType = Enum.CameraType.Scriptable
+
+	local currentPos = projPrimary.Position
+	local currentYaw = select(2, startCFrame:ToEulerAnglesYXZ())
+	local currentPitch = 0
+	local currentRoll = 0
+
+	local baseSpeed = 42
+	local turnSpeed = 2.4
+	local maxRollAngle = math.rad(35) -- องศาการเอียงตัว
+
+	local canHit = false
+	task.delay(0.2, function()
+		canHit = true
+	end)
+
+	-- ระบบตรวจจับการชนกำแพงและผู้เล่นอื่น
+	for _, part in ipairs(activeProjectile:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.Touched:Connect(function(hit)
+				if not isFlying or not canHit then return end
+				if character and hit:IsDescendantOf(character) then return end
+
+				local hitModel = hit.Parent
+				local targetHumanoid = hitModel:FindFirstChildOfClass("Humanoid")
+				if not targetHumanoid and hitModel.Parent then
+					targetHumanoid = hitModel.Parent:FindFirstChildOfClass("Humanoid")
+				end
+
+				if targetHumanoid then
+					targetHumanoid:TakeDamage(40)
+				end
+
+				stopControllingAirplane()
+			end)
+		end
+	end
+
+	flightConnection = RunService.RenderStepped:Connect(function(dt)
+		if not activeProjectile or not activeProjectile.Parent or not projPrimary.Parent then
+			stopControllingAirplane()
+			return
+		end
+
+		local moveDir = humanoid.MoveDirection
+		local steerX = 0
+		local steerY = 0
+
+		if moveDir.Magnitude > 0 then
+			local relativeMove = camera.CFrame:VectorToObjectSpace(moveDir)
+			steerX = relativeMove.X  -- ขวาบวก, ซ้ายลบ
+			steerY = -relativeMove.Z -- ขึ้น/ลง
+		end
+
+		currentYaw = currentYaw - (steerX * turnSpeed * dt)
+		currentPitch = math.clamp(currentPitch + (steerY * turnSpeed * dt), math.rad(-40), math.rad(40))
+
+		-- เลี้ยวซ้ายเอียงซ้าย, เลี้ยวขวาเอียงขวา (ตามที่ต้องการ)
+		local targetRoll = -steerX * maxRollAngle
+		currentRoll = currentRoll + (targetRoll - currentRoll) * math.clamp(dt * 8, 0, 1)
+
+		local rotationCFrame = CFrame.Angles(0, currentYaw, 0) * CFrame.Angles(currentPitch, 0, 0)
+		local forwardVector = rotationCFrame.LookVector
+
+		currentPos = currentPos + (forwardVector * baseSpeed * dt)
+		
+		local finalCFrame = CFrame.new(currentPos) * rotationCFrame * CFrame.Angles(0, 0, currentRoll)
+		activeProjectile:SetPrimaryPartCFrame(finalCFrame)
+
+		-- มุมกล้องติดตาม: อยู่สูงขึ้นและมองลงมามุมสูง (High-Angle View) เพื่อให้มองเห็นทางง่าย
+		local targetCamCFrame = finalCFrame * CFrame.new(0, 5.5, 12) * CFrame.Angles(math.rad(-15), 0, 0)
+		camera.CFrame = camera.CFrame:Lerp(targetCamCFrame, 0.4)
+	end)
+end
+
+-- ==========================================
+-- 5. ฟังก์ชันหยุดการบินและคืนค่ากล้อง
+-- ==========================================
+stopControllingAirplane = function()
+	isFlying = false
+	recallBtn.Visible = false
+	
+	if flightConnection then
+		flightConnection:Disconnect()
+		flightConnection = nil
+	end
+	
+	if activeProjectile then
+		activeProjectile:Destroy()
+		activeProjectile = nil
+	end
+
+	local character = player.Character
+	if character then
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		local rootPart = character:FindFirstChild("HumanoidRootPart")
+		
+		if humanoid then
+			camera.CameraSubject = humanoid
+			camera.CameraType = Enum.CameraType.Custom
+		end
+		
+		if rootPart then
+			rootPart.Anchored = false
+		end
+		
+		if currentTool and currentTool.Parent == character then
+			for _, p in ipairs(currentTool:GetDescendants()) do
+				if p:IsA("BasePart") then p.Transparency = 0 end
+			end
+		elseif backModel and not isFlying then
+			for _, p in ipairs(backModel:GetDescendants()) do
+				if p:IsA("BasePart") then p.Transparency = 0 end
+			end
+		end
+	end
+end
+
+-- ==========================================
+-- 6. สร้าง Tool (ไอเทมเครื่องบินของเล่นในตัว)
+-- ==========================================
+local function createToyTool()
+	if currentTool then currentTool:Destroy() end
+
+	local tool = Instance.new("Tool")
+	tool.Name = "Toy Airplane"
+	tool.RequiresHandle = true
+
+	local handleModel = loadToyAirplane()
+	local primary = handleModel.PrimaryPart
+	if primary then
+		primary.Name = "Handle"
+		primary.Size = Vector3.new(1, 0.4, 2)
+		primary.CanCollide = false
+		primary.Parent = tool
+		handleModel:Destroy()
+	else
+		handleModel.Parent = tool
+	end
+
+	tool.GripPos = Vector3.new(0, -0.3, 0)
+
+	-- เมื่อถือไอเทม: ซ่อนตัวที่หลัง
+	tool.Equipped:Connect(function()
+		if backModel then
+			for _, p in ipairs(backModel:GetDescendants()) do
+				if p:IsA("BasePart") then p.Transparency = 1 end
+			end
+		end
+	end)
+
+	-- เมื่อเก็บไอเทม: แสดงตัวที่หลัง
+	tool.Unequipped:Connect(function()
+		if backModel and not isFlying then
+			for _, p in ipairs(backModel:GetDescendants()) do
+				if p:IsA("BasePart") then p.Transparency = 0 end
+			end
+		end
+	end)
+
+	-- กดคลิก/แตะหน้าจอตรงไหนก็ได้เพื่อปล่อยเครื่องบินออกไป
+	tool.Activated:Connect(function()
+		if not isFlying then
+			launchAirplane()
+		end
+	end)
+
+	tool.Parent = player:WaitForChild("Backpack")
+	currentTool = tool
+end
+
+-- ==========================================
+-- 7. ปุ่มเรียกเครื่องบินกลับ
+-- ==========================================
+recallBtn.MouseButton1Click:Connect(function()
+	stopControllingAirplane()
+end)
+
+-- โหลดอุปกรณ์เมื่อตัวละครเกิด
+task.spawn(function()
+	if player.Character then
+		attachParts(player.Character)
+		createToyTool()
+	end
+end)
+
+player.CharacterAdded:Connect(function(newChar)
+	stopControllingAirplane()
+	task.wait(0.5)
+	attachParts(newChar)
+	createToyTool()
+end)
