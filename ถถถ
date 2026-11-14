@@ -1,0 +1,79 @@
+--[[\
+	Custom Animation Manager by AI
+	จัดการท่าทาง Idle, Walk, Run, Jump แบบสมูทพร้อมใช้งานจริง
+]]--
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local animator = humanoid:WaitForChild("Animator")
+
+-- ==========================================
+-- 💡 ตรงนี้ให้เอา Asset ID ของคุณมาใส่แทนที่เลขเดิมได้เลยครับ!
+-- ==========================================
+local ANIMATION_IDS = {
+	idle = "rbxassetid://507766388",  -- เปลี่ยนเป็น ID ท่ายืนของคุณ
+	walk = "rbxassetid://507767714",  -- เปลี่ยนเป็น ID ท่าเดินของคุณ
+	run  = "rbxassetid://507767714",  -- เปลี่ยนเป็น ID ท่าวิ่งของคุณ (หรือใช้ท่าวิ่งเท่ๆ)
+	jump = "rbxassetid://507765000"   -- เปลี่ยนเป็น ID ท่ากระโดดของคุณ
+}
+
+-- ฟังก์ชันสร้างและโหลด Animation Track
+local function loadAnim(id)
+	local anim = Instance.new("Animation")
+	anim.AnimationId = id
+	local track = animator:LoadAnimation(anim)
+	return track
+end
+
+-- โหลดอนิเมชันทั้งหมดเตรียมไว้
+local tracks = {
+	idle = loadAnim(ANIMATION_IDS.idle),
+	walk = loadAnim(ANIMATION_IDS.walk),
+	run  = loadAnim(ANIMATION_IDS.run),
+	jump = loadAnim(ANIMATION_IDS.jump)
+}
+
+-- ตั้งค่า Priority ให้ถูกต้อง
+tracks.idle.Priority = Enum.AnimationPriority.Core
+tracks.walk.Priority = Enum.AnimationPriority.Movement
+tracks.run.Priority  = Enum.AnimationPriority.Movement
+tracks.jump.Priority = Enum.AnimationPriority.Action
+
+-- ตัวแปรเก็บสถานะท่าที่กำลังเล่นอยู่
+local currentTrack = nil
+
+local function playAnimation(newTrack, fadeTime)
+	if currentTrack ~= newTrack then
+		if currentTrack then
+			currentTrack:Stop(fadeTime or 0.2)
+		end
+		currentTrack = newTrack
+		currentTrack:Play(fadeTime or 0.2)
+	end
+end
+
+-- ตรวจสอบสถานะการเคลื่อนไหวของตัวละครตลอดเวลา
+humanoid.Running:Connect(function(speed)
+	-- เช็คว่ากำลังลอยตัวอยู่กลางอากาศ (กระโดด/ตก) หรือไม่
+	if humanoid:GetState() == Enum.HumanoidStateType.Jumping or humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+		playAnimation(tracks.jump, 0.1)
+	elseif speed > 16 then
+		-- ถ้าความเร็วมากกว่า 16 แปลว่ากำลังวิ่ง (Run)
+		playAnimation(tracks.run, 0.2)
+	elseif speed > 0.5 then
+		-- ถ้าความเร็วมากกว่า 0.5 แต่น้อยกว่าหรือเท่ากับ 16 แปลว่ากำลังเดิน (Walk)
+		playAnimation(tracks.walk, 0.2)
+	else
+		-- ถ้าความเร็วเป็น 0 คือยืนนิ่ง (Idle)
+		playAnimation(tracks.idle, 0.3)
+	end
+end)
+
+-- ดักจับตอนกดกระโดดแยกต่างหากเพื่อให้ตอบสนองไวขึ้น
+humanoid.Jumping:Connect(function(isActive)
+	if isActive then
+		playAnimation(tracks.jump, 0.1)
+	end
+end)
