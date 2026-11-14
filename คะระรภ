@@ -1,0 +1,293 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ตัวแปรสถานะระบบโดรน
+local deployedDrone = nil
+local isControlling = false
+local droneTool = nil
+local remoteTool = nil
+local droneConnection = nil
+
+-- ล้าง UI เก่าเผื่อรันซ้ำ
+local oldGui = playerGui:FindFirstChild("HackerDroneHUD")
+if oldGui then oldGui:Destroy() end
+
+-- ==========================================
+-- 1. สร้างหน้าต่าง HUD จอเขียวแฮ็กเกอร์ (Hacker POV & Controls)
+-- ==========================================
+local hackerGui = Instance.new("ScreenGui")
+hackerGui.Name = "HackerDroneHUD"
+hackerGui.ResetOnSpawn = false
+hackerGui.Enabled = false
+hackerGui.Parent = playerGui
+
+-- ฟิลเตอร์สีเขียวอ่อน (Hacker Green Tint)
+local greenFilter = Instance.new("Frame")
+greenFilter.Size = UDim2.new(1, 0, 1, 0)
+greenFilter.BackgroundColor3 = Color3.fromRGB(15, 55, 25)
+greenFilter.BackgroundTransparency = 0.7
+greenFilter.BorderSizePixel = 0
+greenFilter.Parent = hackerGui
+
+-- เอฟเฟกต์เส้นสแกนไลน์กรีดๆ (Scanlines Glitch)
+local scanline = Instance.new("Frame")
+scanline.Size = UDim2.new(1, 0, 0, 4)
+scanline.BackgroundColor3 = Color3.fromRGB(100, 255, 150)
+scanline.BackgroundTransparency = 0.5
+scanline.BorderSizePixel = 0
+scanline.Parent = hackerGui
+
+-- ไลฟ์สด & สถานะแฮ็กที่มุมจอ
+local liveIndicator = Instance.new("TextLabel")
+liveIndicator.Size = UDim2.new(0, 200, 0, 40)
+liveIndicator.Position = UDim2.new(0, 20, 0, 20)
+liveIndicator.BackgroundTransparency = 1
+liveIndicator.Text = "🔴 [LIVE FEED] SECURE_CONNECTION... // HACKED"
+liveIndicator.TextColor3 = Color3.fromRGB(100, 255, 120)
+liveIndicator.Font = Enum.Font.Code
+liveIndicator.TextSize = 14
+liveIndicator.TextXAlignment = Enum.TextXAlignment.Left
+liveIndicator.Parent = hackerGui
+
+-- เอฟเฟกต์แฟลชแบ็ก (Flashback / Glitch Flash screen)
+local flashScreen = Instance.new("Frame")
+flashScreen.Size = UDim2.new(1, 0, 1, 0)
+flashScreen.BackgroundColor3 = Color3.fromRGB(180, 255, 200)
+flashScreen.BackgroundTransparency = 1
+flashScreen.BorderSizePixel = 0
+flashScreen.Parent = hackerGui
+
+-- ปุ่มสกิลบังคับโดรนบนหน้าจอ (ขึ้น, ลง, ซ้าย, ขวา)
+local controlPanel = Instance.new("Frame")
+controlPanel.Size = UDim2.new(0, 180, 0, 180)
+controlPanel.Position = UDim2.new(1, -200, 1, -200)
+controlPanel.BackgroundTransparency = 1
+controlPanel.Parent = hackerGui
+
+local function createButton(name, text, pos)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0, 50, 0, 50)
+	btn.Position = pos
+	btn.BackgroundColor3 = Color3.fromRGB(20, 50, 30)
+	btn.BackgroundTransparency = 0.3
+	btn.Text = text
+	btn.TextColor3 = Color3.fromRGB(120, 255, 150)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 18
+	btn.Parent = controlPanel
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = btn
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(80, 220, 120)
+	stroke.Thickness = 1
+	stroke.Parent = btn
+
+	return btn
+end
+
+local btnUp = createButton("Up", "▲", UDim2.new(0.35, 0, 0, 0))
+local btnDown = createButton("Down", "▼", UDim2.new(0.35, 0, 0.65, 0))
+local btnLeft = createButton("Left", "◀", UDim2.new(0, 0, 0.325, 0))
+local btnRight = createButton("Right", "▶", UDim2.new(0.7, 0, 0.325, 0))
+
+-- ==========================================
+-- 2. ฟังก์ชันเอฟเฟกต์แฟลชแบ็ก ("ฟึบ!")
+-- ==========================================
+local function playFlashbackEffect(callback)
+	flashScreen.BackgroundTransparency = 0.2
+	TweenService:Create(flashScreen, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
+	if callback then callback() end
+end
+
+-- ==========================================
+-- 3. สร้างโมเดลบล็อกสี่เหลี่ยม (โดรน)
+-- ==========================================
+local function createDroneModel(cframe)
+	local model = Instance.new("Model")
+	model.Name = "SquareDrone"
+
+	local core = Instance.new("Part")
+	core.Name = "Core"
+	core.Size = Vector3.new(2, 0.8, 2)
+	core.Color = Color3.fromRGB(35, 35, 40)
+	core.Material = Enum.Material.Neon
+	core.CFrame = cframe
+	core.CanCollide = true
+	core.Parent = model
+	model.PrimaryPart = core
+
+	-- ไฟสถานะสีเขียวแฮ็กเกอร์รอบโดรน
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(50, 255, 100)
+	light.Brightness = 2
+	light.Range = 8
+	light.Parent = core
+
+	model.Parent = workspace
+	return model
+end
+
+-- ==========================================
+-- 4. ฟังก์ชันควบคุมการบินโดรน
+-- ==========================================
+local moveUp = false
+local moveDown = false
+
+btnUp.MouseButton1Down:Connect(function() moveUp = true end)
+btnUp.MouseButton1Up:Connect(function() moveUp = false end)
+btnDown.MouseButton1Down:Connect(function() moveDown = true end)
+btnDown.MouseButton1Up:Connect(function() moveDown = false end)
+
+local function startDroneControl()
+	if not deployedDrone or not deployedDrone.PrimaryPart then return end
+	isControlling = true
+	hackerGui.Enabled = true
+	camera.CameraType = Enum.CameraType.Scriptable
+
+	playFlashbackEffect()
+
+	local dronePart = deployedDrone.PrimaryPart
+	local currentPos = dronePart.Position
+	local currentYaw = 0
+	local speed = 35
+
+	droneConnection = RunService.RenderStepped:Connect(function(dt)
+		if not deployedDrone or not deployedDrone.Parent then
+			stopDroneControl()
+			return
+		end
+
+		local char = player.Character
+		local moveDir = char and char:FindFirstChildOfClass("Humanoid") and char.Humanoid.MoveDirection or Vector3.new(0,0,0)
+
+		-- คำนวณทิศทางการเลี้ยวตามการเดินหรือปุ่ม
+		if moveDir.Magnitude > 0 then
+			local camLook = camera.CFrame.LookVector
+			local steer = moveDir.X
+			currentYaw = currentYaw - (steer * 2.5 * dt)
+		end
+
+		local upDownInput = 0
+		if moveUp then upDownInput = 1 end
+		if moveDown then upDownInput = -1 end
+
+		local rotCF = CFrame.Angles(0, currentYaw, 0)
+		local forwardVec = rotCF.LookVector
+
+		currentPos = currentPos + (forwardVec * speed * dt) + Vector3.new(0, upDownInput * speed * dt, 0)
+		
+		local targetCF = CFrame.new(currentPos) * rotCF
+		deployedDrone:SetPrimaryPartCFrame(targetCF)
+
+		-- มุมมองบุคคลที่หนึ่งติดอยู่ที่ตัวโดรนเป๊ะ ๆ
+		camera.CFrame = targetCF * CFrame.new(0, 0.4, 0)
+	end)
+end
+
+function stopDroneControl()
+	if not isControlling then return end
+	isControlling = false
+	hackerGui.Enabled = false
+
+	if droneConnection then
+		droneConnection:Disconnect()
+		droneConnection = nil
+	end
+
+	camera.CameraType = Enum.CameraType.Custom
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		camera.CameraSubject = humanoid
+	end
+end
+
+-- ==========================================
+-- 5. สร้างไอเทมชิ้นที่ 1: โดรน (Deploy Drone Tool)
+-- ==========================================
+local function createDeployTool()
+	local tool = Instance.new("Tool")
+	tool.Name = "Deploy Drone"
+	tool.RequiresHandle = true
+
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(1.2, 0.6, 1.2)
+	handle.Color = Color3.fromRGB(40, 40, 45)
+	handle.Material = Enum.Material.Metal
+	handle.Parent = tool
+
+	tool.Activated:Connect(function()
+		local char = player.Character
+		if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+		local root = char.HumanoidRootPart
+
+		if deployedDrone then deployedDrone:Destroy() end
+		
+		-- วางโดรนไว้ข้างหน้าผู้เล่น
+		local spawnCF = root.CFrame * CFrame.new(0, 0, -5) + Vector3.new(0, 2, 0)
+		deployedDrone = createDroneModel(spawnCF)
+	end)
+
+	tool.Parent = player:WaitForChild("Backpack")
+	droneTool = tool
+end
+
+-- ==========================================
+-- 6. สร้างไอเทมชิ้นที่ 2: รีโมท (Remote Control Tool)
+-- ==========================================
+local function createRemoteTool()
+	local tool = Instance.new("Tool")
+	tool.Name = "Drone Remote"
+	tool.RequiresHandle = true
+
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.6, 0.2, 1.0)
+	handle.Color = Color3.fromRGB(200, 50, 50)
+	handle.Material = Enum.Material.SmoothPlastic
+	handle.Parent = tool
+
+	tool.Equipped:Connect(function()
+		if deployedDrone then
+			startDroneControl()
+		else
+			-- แจ้งเตือนหรือให้วางโดรนก่อน
+			print("ยังไม่ได้วางโดรน!")
+		end
+	end)
+
+	tool.Unequipped:Connect(function()
+		stopDroneControl()
+	end)
+
+	tool.Parent = player:WaitForChild("Backpack")
+	remoteTool = tool
+end
+
+-- เริ่มสร้างไอเทมทั้งหมดให้ตัวละคร
+task.spawn(function()
+	task.wait(1)
+	createDeployTool()
+	createRemoteTool()
+end)
+
+player.CharacterAdded:Connect(function()
+	stopDroneControl()
+	if deployedDrone then
+		deployedDrone:Destroy()
+		deployedDrone = nil
+	end
+	task.wait(1)
+	createDeployTool()
+	createRemoteTool()
+end)
