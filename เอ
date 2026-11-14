@@ -1,0 +1,78 @@
+--[[\
+	Custom Animation Manager by AI
+	- ท่ายืน (Idle): 4211409027
+	- ท่าเดิน (Walk): 106810508343012
+	- ท่าวิ่ง (Run): 124765145869332
+	- ท่ากระโดด (Jump): 507765000
+]]--
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local animator = humanoid:WaitForChild("Animator")
+
+-- ==========================================
+-- 💡 Animation IDs ที่อัปเดตตามที่คุณต้องการแล้ว
+-- ==========================================
+local ANIMATION_IDS = {
+	idle = "rbxassetid://4211409027",      -- ท่ายืน
+	walk = "rbxassetid://106810508343012", -- ท่าเดิน
+	run  = "rbxassetid://124765145869332", -- ท่าวิ่ง
+	jump = "rbxassetid://507765000"        -- ท่ากระโดด
+}
+
+-- ฟังก์ชันสร้างและโหลด Animation Track
+local function loadAnim(id)
+	local anim = Instance.new("Animation")
+	anim.AnimationId = id
+	local track = animator:LoadAnimation(anim)
+	return track
+end
+
+-- โหลดอนิเมชันทั้งหมดเตรียมไว้
+local tracks = {
+	idle = loadAnim(ANIMATION_IDS.idle),
+	walk = loadAnim(ANIMATION_IDS.walk),
+	run  = loadAnim(ANIMATION_IDS.run),
+	jump = loadAnim(ANIMATION_IDS.jump)
+}
+
+-- ตั้งค่า Priority ให้ถูกต้อง
+tracks.idle.Priority = Enum.AnimationPriority.Core
+tracks.walk.Priority = Enum.AnimationPriority.Movement
+tracks.run.Priority  = Enum.AnimationPriority.Movement
+tracks.jump.Priority = Enum.AnimationPriority.Action
+
+-- ตัวแปรเก็บสถานะท่าที่กำลังเล่นอยู่
+local currentTrack = nil
+
+local function playAnimation(newTrack, fadeTime)
+	if currentTrack ~= newTrack then
+		if currentTrack then
+			currentTrack:Stop(fadeTime or 0.2)
+		end
+		currentTrack = newTrack
+		currentTrack:Play(fadeTime or 0.2)
+	end
+end
+
+-- ตรวจสอบสถานะการเคลื่อนไหวของตัวละครตลอดเวลา
+humanoid.Running:Connect(function(speed)
+	if humanoid:GetState() == Enum.HumanoidStateType.Jumping or humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+		playAnimation(tracks.jump, 0.1)
+	elseif speed > 16 then
+		playAnimation(tracks.run, 0.2)
+	elseif speed > 0.5 then
+		playAnimation(tracks.walk, 0.2)
+	else
+		playAnimation(tracks.idle, 0.3)
+	end
+end)
+
+-- ดักจับตอนกดกระโดดแยกต่างหาก
+humanoid.Jumping:Connect(function(isActive)
+	if isActive then
+		playAnimation(tracks.jump, 0.1)
+	end
+end)
