@@ -1,0 +1,551 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ตัวแปรสถานะระบบโดรน
+local deployedDrone = nil
+local isControlling = false
+local droneTool = nil
+local remoteTool = nil
+local droneConnection = nil
+
+-- ตัวแปรเก็บค่าเดิมของตัวละครก่อนย่อส่วนเข้าไปในโดรน
+local originalCharCFrame = nil
+local originalScale = 1
+
+-- ล้าง UI เก่าเผื่อรันซ้ำ
+local oldGui = playerGui:FindFirstChild("HackerDroneHUD")
+if oldGui then oldGui:Destroy() end
+
+-- ==========================================
+-- 1. สร้างหน้าต่าง HUD จอเขียวแฮ็กเกอร์แบบเต็มจอ (Fullscreen)
+-- ==========================================
+local hackerGui = Instance.new("ScreenGui")
+hackerGui.Name = "HackerDroneHUD"
+hackerGui.ResetOnSpawn = false
+hackerGui.Enabled = false
+hackerGui.Parent = playerGui
+
+-- ฟิลเตอร์สีเขียวคลุมเต็มจอ 100%
+local greenFilter = Instance.new("Frame")
+greenFilter.Size = UDim2.new(1, 0, 1, 0)
+greenFilter.Position = UDim2.new(0, 0, 0, 0)
+greenFilter.BackgroundColor3 = Color3.fromRGB(8, 35, 15)
+greenFilter.BackgroundTransparency = 0.55
+greenFilter.BorderSizePixel = 0
+greenFilter.Parent = hackerGui
+
+-- เอฟเฟกต์เส้นสแกนไลน์เต็มจอ (Scanlines)
+local scanline = Instance.new("Frame")
+scanline.Size = UDim2.new(1, 0, 1, 0)
+scanline.Position = UDim2.new(0, 0, 0, 0)
+scanline.BackgroundTransparency = 1
+scanline.BorderSizePixel = 0
+scanline.Parent = hackerGui
+
+for i = 0, 1, 0.03 do
+	local line = Instance.new("Frame")
+	line.Size = UDim2.new(1, 0, 0, 2)
+	line.Position = UDim2.new(0, 0, i, 0)
+	line.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	line.BackgroundTransparency = 0.7
+	line.BorderSizePixel = 0
+	line.Parent = scanline
+end
+
+-- หน้าจอภาพซ่าจำลอง (Static Noise Overlay) เต็มจอ
+local staticOverlay = Instance.new("Frame")
+staticOverlay.Size = UDim2.new(1, 0, 1, 0)
+staticOverlay.Position = UDim2.new(0, 0, 0, 0)
+staticOverlay.BackgroundTransparency = 1
+staticOverlay.BorderSizePixel = 0
+staticOverlay.Parent = hackerGui
+
+-- ไลฟ์สด & สถานะความเร็วที่มุมจอ
+local liveIndicator = Instance.new("TextLabel")
+liveIndicator.Size = UDim2.new(0, 350, 0, 45)
+liveIndicator.Position = UDim2.new(0, 30, 0, 30)
+liveIndicator.BackgroundTransparency = 1
+liveIndicator.Text = "🔴 [CAMERA_FEED] DRONE_REC // ACTIVE\n⚡ SPEED: 30"
+liveIndicator.TextColor3 = Color3.fromRGB(80, 255, 120)
+liveIndicator.Font = Enum.Font.Code
+liveIndicator.TextSize = 14
+liveIndicator.TextXAlignment = Enum.TextXAlignment.Left
+liveIndicator.Parent = hackerGui
+
+-- หน้าจอแฟลชแบ็กภาพซ่าตอนเชื่อมต่อ
+local flashScreen = Instance.new("Frame")
+flashScreen.Size = UDim2.new(1, 0, 1, 0)
+flashScreen.Position = UDim2.new(0, 0, 0, 0)
+flashScreen.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+flashScreen.BackgroundTransparency = 1
+flashScreen.BorderSizePixel = 0
+flashScreen.Parent = hackerGui
+
+-- ==========================================
+-- 2. ปุ่มควบคุมทรงกลม (ฝั่งซ้าย: เดินหน้า / ถอยหลัง)
+-- ==========================================
+local leftPanel = Instance.new("Frame")
+leftPanel.Size = UDim2.new(0, 120, 0, 130)
+leftPanel.Position = UDim2.new(0, 30, 1, -160)
+leftPanel.BackgroundTransparency = 1
+leftPanel.Parent = hackerGui
+
+local function createCircularBtn(parent, name, text, pos)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0, 55, 0, 55)
+	btn.Position = pos
+	btn.BackgroundColor3 = Color3.fromRGB(15, 40, 25)
+	btn.BackgroundTransparency = 0.25
+	btn.Text = text
+	btn.TextColor3 = Color3.fromRGB(100, 255, 140)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 16
+	btn.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = btn
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(60, 200, 100)
+	stroke.Thickness = 1.5
+	stroke.Parent = btn
+
+	return btn
+end
+
+local btnForward  = createCircularBtn(leftPanel, "Forward", "▲", UDim2.new(0, 10, 0, 0))
+local btnBackward = createCircularBtn(leftPanel, "Backward", "▼", UDim2.new(0, 10, 0, 65))
+
+-- ==========================================
+-- 3. ปุ่มควบคุมทรงกลม (ฝั่งขวาล่าง: เพิ่มความเร็ว + / ลดความเร็ว - / เลี้ยวซ้าย / เลี้ยวขวา)
+-- ==========================================
+local rightPanel = Instance.new("Frame")
+rightPanel.Size = UDim2.new(0, 130, 0, 130)
+rightPanel.Position = UDim2.new(1, -150, 1, -160)
+rightPanel.BackgroundTransparency = 1
+rightPanel.Parent = hackerGui
+
+local btnSpeedUp   = createCircularBtn(rightPanel, "SpeedUp", "➕", UDim2.new(0, 0, 0, 0))
+local btnSpeedDown = createCircularBtn(rightPanel, "SpeedDown", "➖", UDim2.new(0, 65, 0, 0))
+local btnLeft      = createCircularBtn(rightPanel, "Left", "◄", UDim2.new(0, 0, 0, 65))
+local btnRight     = createCircularBtn(rightPanel, "Right", "►", UDim2.new(0, 65, 0, 65))
+
+-- ==========================================
+-- 4. แป้นวงกลมพร้อมจุดสีแดง 360 องศา (มุมขวาบน)
+-- ==========================================
+local turnPad = Instance.new("Frame")
+turnPad.Size = UDim2.new(0, 110, 0, 110)
+turnPad.Position = UDim2.new(1, -135, 0, 30)
+turnPad.BackgroundColor3 = Color3.fromRGB(15, 40, 25)
+turnPad.BackgroundTransparency = 0.4
+turnPad.BorderSizePixel = 0
+turnPad.Parent = hackerGui
+
+local padCorner = Instance.new("UICorner")
+padCorner.CornerRadius = UDim.new(1, 0)
+padCorner.Parent = turnPad
+
+local padStroke = Instance.new("UIStroke")
+padStroke.Color = Color3.fromRGB(60, 200, 100)
+padStroke.Thickness = 2
+padStroke.Parent = turnPad
+
+local redButton = Instance.new("TextButton")
+redButton.Size = UDim2.new(0, 45, 0, 45)
+redButton.Position = UDim2.new(0.5, -22, 0.5, -22)
+redButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+redButton.Text = ""
+redButton.Parent = turnPad
+
+local redCorner = Instance.new("UICorner")
+redCorner.CornerRadius = UDim.new(1, 0)
+redCorner.Parent = redButton
+
+-- ตัวแปรสถานะปุ่มกดและความเร็ว
+local moveForward, moveBackward, turnLeft, turnRight = false, false, false, false
+local droneSpeed = 30
+local aimInputX, aimInputY = 0, 0
+local isDraggingRedBtn = false
+local activeTouch = nil
+
+local function bindButton(btn, getStateFunc)
+	btn.MouseButton1Down:Connect(function() getStateFunc(true) end)
+	btn.MouseButton1Up:Connect(function() getStateFunc(false) end)
+	btn.MouseLeave:Connect(function() getStateFunc(false) end)
+end
+
+bindButton(btnForward, function(v) moveForward = v end)
+bindButton(btnBackward, function(v) moveBackward = v end)
+bindButton(btnLeft, function(v) turnLeft = v end)
+bindButton(btnRight, function(v) turnRight = v end)
+
+local function updateSpeedDisplay()
+	liveIndicator.Text = "🔴 [CAMERA_FEED] DRONE_REC // ACTIVE\n⚡ SPEED: " .. tostring(droneSpeed)
+end
+
+btnSpeedUp.MouseButton1Click:Connect(function()
+	droneSpeed = math.clamp(droneSpeed + 10, 10, 100)
+	updateSpeedDisplay()
+end)
+
+btnSpeedDown.MouseButton1Click:Connect(function()
+	droneSpeed = math.clamp(droneSpeed - 10, 10, 100)
+	updateSpeedDisplay()
+end)
+
+-- ระบบลากจุดสีแดง 360 องศา (Joystick)
+redButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		isDraggingRedBtn = true
+		activeTouch = input
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input == activeTouch then
+		isDraggingRedBtn = false
+		activeTouch = nil
+		aimInputX = 0
+		aimInputY = 0
+		TweenService:Create(redButton, TweenInfo.new(0.1), {Position = UDim2.new(0.5, -22, 0.5, -22)}):Play()
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if isDraggingRedBtn and input == activeTouch then
+		local absPos = turnPad.AbsolutePosition
+		local absSize = turnPad.AbsoluteSize
+		local center = absPos + (absSize / 2)
+		local mousePos = input.Position
+		
+		local offset = Vector2.new(mousePos.X - center.X, mousePos.Y - center.Y)
+		local maxDist = absSize.X / 2 - 22
+		
+		if offset.Magnitude > maxDist then
+			offset = offset.Unit * maxDist
+		end
+		
+		redButton.Position = UDim2.new(0.5, offset.X - 22, 0.5, offset.Y - 22)
+		aimInputX = offset.X / maxDist
+		aimInputY = offset.Y / maxDist
+	end
+end)
+
+-- ==========================================
+-- 5. เอฟเฟกต์แฟลชแบ็กภาพซ่า
+-- ==========================================
+local function playStaticFlashback(onReady)
+	flashScreen.Visible = true
+	
+	task.spawn(function()
+		for i = 1, 15 do
+			flashScreen.BackgroundColor3 = math.random(0, 1) == 0 and Color3.fromRGB(240, 240, 240) or Color3.fromRGB(15, 15, 15)
+			flashScreen.BackgroundTransparency = 0.05
+			task.wait(0.04)
+		end
+		
+		for i = 1, 15 do
+			flashScreen.BackgroundColor3 = math.random(0, 1) == 0 and Color3.fromRGB(40, 220, 80) or Color3.fromRGB(10, 50, 20)
+			flashScreen.BackgroundTransparency = 0.1
+			task.wait(0.04)
+		end
+
+		TweenService:Create(flashScreen, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+		task.wait(0.4)
+		flashScreen.Visible = false
+		if onReady then onReady() end
+	end)
+end
+
+-- ==========================================
+-- 6. สร้างโมเดลโดรน (ปิดการชน CanCollide = false เพื่อให้ทะลุได้ทุกสิ่ง)
+-- ==========================================
+local function createDroneModel(cframe)
+	local model = Instance.new("Model")
+	model.Name = "SquareDrone"
+
+	local core = Instance.new("Part")
+	core.Name = "Core"
+	core.Size = Vector3.new(2, 0.8, 2)
+	core.Color = Color3.fromRGB(30, 30, 35)
+	core.Material = Enum.Material.Neon
+	core.CFrame = cframe
+	core.CanCollide = false -- ปิดการชนเพื่อให้ทะลุกำแพงได้อิสระ
+	core.Parent = model
+	model.PrimaryPart = core
+
+	local cameraLens = Instance.new("Part")
+	cameraLens.Name = "CameraLens"
+	cameraLens.Size = Vector3.new(0.6, 0.4, 0.6)
+	cameraLens.Color = Color3.fromRGB(20, 20, 20)
+	cameraLens.Material = Enum.Material.SmoothPlastic
+	cameraLens.CanCollide = false
+	cameraLens.Parent = model
+
+	local lensWeld = Instance.new("WeldConstraint")
+	lensWeld.Part0 = core
+	lensWeld.Part1 = cameraLens
+	lensWeld.Parent = core
+	cameraLens.CFrame = core.CFrame * CFrame.new(0, -0.6, 0)
+
+	local lensGlass = Instance.new("Part")
+	lensGlass.Size = Vector3.new(0.3, 0.3, 0.3)
+	lensGlass.Color = Color3.fromRGB(255, 50, 50)
+	lensGlass.Material = Enum.Material.Glass
+	lensGlass.CanCollide = false
+	lensGlass.Parent = model
+
+	local glassWeld = Instance.new("WeldConstraint")
+	glassWeld.Part0 = cameraLens
+	glassWeld.Part1 = lensGlass
+	glassWeld.Parent = cameraLens
+	lensGlass.CFrame = cameraLens.CFrame * CFrame.new(0, 0, -0.3)
+
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(50, 255, 100)
+	light.Brightness = 3
+	light.Range = 10
+	light.Parent = core
+
+	model.Parent = workspace
+	return model
+end
+
+-- ==========================================
+-- 7. ฟังก์ชันย่อตัวละครและจัดการตำแหน่งตัวละคร
+-- ==========================================
+local function setCharacterMiniMode(char, enabled)
+	if not char then return end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	local hum = char:FindFirstChildOfClass("Humanoid")
+
+	if enabled then
+		if root then
+			originalCharCFrame = root.CFrame
+			root.Anchored = true
+		end
+		if hum then
+			originalScale = char:GetScale()
+		end
+		pcall(function()
+			char:ScaleTo(0.15)
+		end)
+		for _, part in ipairs(char:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = false
+			end
+		end
+	else
+		pcall(function()
+			char:ScaleTo(originalScale or 1)
+		end)
+		for _, part in ipairs(char:GetDescendants()) do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				part.CanCollide = true
+			end
+		end
+		if root then
+			root.Anchored = false
+			if originalCharCFrame then
+				root.CFrame = originalCharCFrame
+			end
+		end
+	end
+end
+
+-- ==========================================
+-- 8. ฟังก์ชันควบคุมการบินโดรน (ทะลุกำแพงได้อิสระ 100%)
+-- ==========================================
+local function startDroneControl()
+	if not deployedDrone or not deployedDrone.PrimaryPart then return end
+	
+	local char = player.Character
+	setCharacterMiniMode(char, true)
+
+	playStaticFlashback(function()
+		isControlling = true
+		hackerGui.Enabled = true
+		camera.CameraType = Enum.CameraType.Scriptable
+	end)
+
+	local dronePart = deployedDrone.PrimaryPart
+	local currentPos = dronePart.Position
+	local currentYaw = 0
+	local currentPitch = 0
+	local currentTiltPitch = 0 
+	local currentTiltRoll = 0  
+
+	local turnSpeed = 3.2
+	local pitchSpeed = 2.5
+	
+	local charSpinAngle = 0
+	local spinSpeedRad = math.rad(360) * 15
+
+	if droneConnection then droneConnection:Disconnect() end
+
+	droneConnection = RunService.RenderStepped:Connect(function(dt)
+		if not deployedDrone or not deployedDrone.Parent then
+			stopDroneControl()
+			return
+		end
+
+		-- หมุนตัวละครจิ๋วปั่นอยู่ในโดรนตลอดเวลา
+		charSpinAngle = (charSpinAngle + spinSpeedRad * dt) % (math.pi * 2)
+		local currentChar = player.Character
+		if currentChar and currentChar:FindFirstChild("HumanoidRootPart") then
+			currentChar.HumanoidRootPart.CFrame = CFrame.new(currentPos) * CFrame.Angles(charSpinAngle, charSpinAngle * 1.5, charSpinAngle * 0.8)
+		end
+
+		if not isControlling then return end
+
+		-- 1. ควบคุมการหมุนรอบตัวเอง 360 องศา
+		if turnLeft then currentYaw = currentYaw + (turnSpeed * dt) end
+		if turnRight then currentYaw = currentYaw - (turnSpeed * dt) end
+
+		if math.abs(aimInputX) > 0.05 then
+			currentYaw = currentYaw - (aimInputX * turnSpeed * dt * 2.0)
+		end
+		if math.abs(aimInputY) > 0.05 then
+			currentPitch = math.clamp(currentPitch - (aimInputY * pitchSpeed * dt * 2.0), math.rad(-160), math.rad(160))
+		end
+
+		local lookRotCF = CFrame.Angles(0, currentYaw, 0) * CFrame.Angles(currentPitch, 0, 0)
+		local aimForwardVec = lookRotCF.LookVector
+
+		-- 2. เคลื่อนที่ทะลุกำแพงได้อิสระทันที
+		local moveVector = Vector3.new(0, 0, 0)
+		if moveForward then moveVector = moveVector + aimForwardVec end
+		if moveBackward then moveVector = moveVector - aimForwardVec end
+
+		currentPos = currentPos + (moveVector * droneSpeed * dt)
+
+		-- 3. ระบบเอียงตัวโดรน
+		local targetTiltPitch = 0
+		if moveForward then targetTiltPitch = math.rad(-16)
+		elseif moveBackward then targetTiltPitch = math.rad(16) end
+
+		local targetTiltRoll = 0
+		if turnLeft or aimInputX < -0.1 then targetTiltRoll = math.rad(22)
+		elseif turnRight or aimInputX > 0.1 then targetTiltRoll = math.rad(-22) end
+
+		currentTiltPitch = currentTiltPitch + (targetTiltPitch - currentTiltPitch) * math.clamp(dt * 12, 0, 1)
+		currentTiltRoll = currentTiltRoll + (targetTiltRoll - currentTiltRoll) * math.clamp(dt * 12, 0, 1)
+
+		local finalRotCF = CFrame.Angles(0, currentYaw, 0) 
+			* CFrame.Angles(currentPitch + currentTiltPitch, 0, currentTiltRoll)
+
+		local targetCF = CFrame.new(currentPos) * finalRotCF
+		deployedDrone:SetPrimaryPartCFrame(targetCF)
+
+		-- 4. มุมมองกล้องตามติดโดรน
+		camera.CFrame = targetCF * CFrame.new(0, 0.4, 0)
+
+		-- ภาพซ่าหน้าจอแฮ็กเกอร์แบบสุ่ม
+		if math.random(1, 8) == 1 then
+			staticOverlay.BackgroundColor3 = math.random(0, 1) == 0 and Color3.fromRGB(20, 220, 80) or Color3.fromRGB(5, 40, 15)
+			staticOverlay.BackgroundTransparency = math.random(80, 95) / 100
+		end
+	end)
+end
+
+function stopDroneControl()
+	if not isControlling and not droneConnection then return end
+	isControlling = false
+	hackerGui.Enabled = false
+
+	if droneConnection then
+		droneConnection:Disconnect()
+		droneConnection = nil
+	end
+
+	setCharacterMiniMode(player.Character, false)
+
+	camera.CameraType = Enum.CameraType.Custom
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		camera.CameraSubject = humanoid
+	end
+end
+
+-- ==========================================
+-- 9. สร้างไอเทมชิ้นที่ 1 และ 2
+-- ==========================================
+local function createDeployTool()
+	local tool = Instance.new("Tool")
+	tool.Name = "Deploy Drone"
+	tool.RequiresHandle = true
+
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(1.2, 0.6, 1.2)
+	handle.Color = Color3.fromRGB(40, 40, 45)
+	handle.Material = Enum.Material.Metal
+	handle.Parent = tool
+
+	tool.Activated:Connect(function()
+		local char = player.Character
+		if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+		local root = char.HumanoidRootPart
+
+		if deployedDrone then deployedDrone:Destroy() end
+		
+		local spawnCF = root.CFrame * CFrame.new(0, 0, -5) + Vector3.new(0, 2, 0)
+		deployedDrone = createDroneModel(spawnCF)
+	end)
+
+	tool.Parent = player:WaitForChild("Backpack")
+	droneTool = tool
+end
+
+local function createRemoteTool()
+	local tool = Instance.new("Tool")
+	tool.Name = "Drone Remote"
+	tool.RequiresHandle = true
+
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.6, 0.2, 1.0)
+	handle.Color = Color3.fromRGB(200, 50, 50)
+	handle.Material = Enum.Material.SmoothPlastic
+	handle.Parent = tool
+
+	tool.Equipped:Connect(function()
+		if deployedDrone then
+			startDroneControl()
+		else
+			print("ยังไม่ได้วางโดรน!")
+		end
+	end)
+
+	tool.Unequipped:Connect(function()
+		stopDroneControl()
+	end)
+
+	tool.Parent = player:WaitForChild("Backpack")
+	remoteTool = tool
+end
+
+task.spawn(function()
+	task.wait(1)
+	createDeployTool()
+	createRemoteTool()
+end)
+
+player.CharacterAdded:Connect(function()
+	stopDroneControl()
+	if deployedDrone then
+		deployedDrone:Destroy()
+		deployedDrone = nil
+	end
+	task.wait(1)
+	createDeployTool()
+	createRemoteTool()
+end)
