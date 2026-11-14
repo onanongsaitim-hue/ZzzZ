@@ -1,0 +1,108 @@
+--[================================================================]--
+-- Cyberpunk Boost System LocalScript
+--[================================================================]--
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- สร้าง ScreenGui หลัก
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CyberpunkBoostGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- 1. สร้างหน้าต่าง UI หลัก (ขยับได้, ปิดได้)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 360, 0, 240)
+mainFrame.Position = UDim2.new(0.5, -180, 0.5, -120)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+-- ขอบนีออนไซเบอร์พังค์ให้หน้าต่างหลัก
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Color = Color3.fromRGB(0, 255, 128)
+uiStroke.Thickness = 2
+uiStroke.Parent = mainFrame
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 8)
+uiCorner.Parent = mainFrame
+
+-- หัวข้อหน้าต่าง
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -40, 0, 40)
+titleLabel.Position = UDim2.new(0, 15, 0, 10)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ CYBERPUNK BOOST SYSTEM ⚡"
+titleLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
+titleLabel.TextSize = 16
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = mainFrame
+
+-- ปุ่มปิด (X)
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -35, 0, 10)
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 14
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeButton
+
+closeButton.MouseButton1Click:Connect(function()
+	mainFrame.Visible = false
+end)
+
+-- ปุ่ม "บูสต์วิ่ง" ในหน้าต่าง UI
+local boostButton = Instance.new("TextButton")
+boostButton.Size = UDim2.new(0, 300, 0, 60)
+boostButton.Position = UDim2.new(0.5, -150, 0.5, -10)
+boostButton.BackgroundColor3 = Color3.fromRGB(0, 40, 30)
+boostButton.Text = "🚀 บูสต์วิ่ง"
+boostButton.TextColor3 = Color3.fromRGB(0, 255, 128)
+boostButton.TextSize = 22
+boostButton.Font = Enum.Font.GothamBold
+boostButton.Parent = mainFrame
+
+local boostCorner = Instance.new("UICorner")
+boostCorner.CornerRadius = UDim.new(0, 8)
+boostCorner.Parent = boostButton
+
+local boostStroke = Instance.new("UIStroke")
+boostStroke.Color = Color3.fromRGB(0, 255, 128)
+boostStroke.Thickness = 2
+boostStroke.Parent = boostButton
+
+-- ระบบทำให้หน้าต่างขยับได้ (Draggable)
+local dragging, dragInput, dragStart, startPos
+mainFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+	if input.UserInput
