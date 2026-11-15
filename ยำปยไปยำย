@@ -1,0 +1,270 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- สร้าง UI หน้าต่างที่ 1 (ความเร็ว)
+local ScreenGui1 = Instance.new("ScreenGui")
+ScreenGui1.Name = "SpeedFunctionUI"
+ScreenGui1.ResetOnSpawn = false
+ScreenGui1.Parent = game:GetService("CoreGui")
+
+local MainFrame1 = Instance.new("Frame")
+MainFrame1.Size = UDim2.new(0, 240, 0, 120)
+MainFrame1.Position = UDim2.new(0.35, -120, 0.5, -60)
+MainFrame1.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+MainFrame1.BorderSizePixel = 0
+MainFrame1.Active = true
+MainFrame1.Parent = ScreenGui1
+
+local Corner1 = Instance.new("UICorner")
+Corner1.CornerRadius = UDim.new(0, 8)
+Corner1.Parent = MainFrame1
+
+local TopBar1 = Instance.new("Frame")
+TopBar1.Size = UDim2.new(1, 0, 0, 32)
+TopBar1.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+TopBar1.BorderSizePixel = 0
+TopBar1.Parent = MainFrame1
+
+local TopCorner1 = Instance.new("UICorner")
+TopCorner1.CornerRadius = UDim.new(0, 8)
+TopCorner1.Parent = TopBar1
+
+local Title1 = Instance.new("TextLabel")
+Title1.Size = UDim2.new(1, -35, 1, 0)
+Title1.Position = UDim2.new(0, 10, 0, 0)
+Title1.BackgroundTransparency = 1
+Title1.Text = "ฟังก์ชัน 1 : ความเร็ว"
+Title1.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title1.Font = Enum.Font.GothamBold
+Title1.TextSize = 13
+Title1.TextXAlignment = Enum.TextXAlignment.Left
+Title1.Parent = TopBar1
+
+local CloseBtn1 = Instance.new("TextButton")
+CloseBtn1.Size = UDim2.new(0, 32, 0, 32)
+CloseBtn1.Position = UDim2.new(1, -32, 0, 0)
+CloseBtn1.BackgroundTransparency = 1
+CloseBtn1.Text = "X"
+CloseBtn1.TextColor3 = Color3.fromRGB(255, 80, 80)
+CloseBtn1.Font = Enum.Font.GothamBold
+CloseBtn1.TextSize = 15
+CloseBtn1.Parent = TopBar1
+
+local ToggleBtn1 = Instance.new("TextButton")
+ToggleBtn1.Size = UDim2.new(0.85, 0, 0, 45)
+ToggleBtn1.Position = UDim2.new(0.075, 0, 0.45, 0)
+ToggleBtn1.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+ToggleBtn1.Text = "ความเร็ว : ปิด"
+ToggleBtn1.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn1.Font = Enum.Font.GothamSemibold
+ToggleBtn1.TextSize = 14
+ToggleBtn1.Parent = MainFrame1
+
+local BtnCorner1 = Instance.new("UICorner")
+BtnCorner1.CornerRadius = UDim.new(0, 6)
+BtnCorner1.Parent = ToggleBtn1
+
+-- ระบบลากหน้าต่าง 1
+local dragging1, dragInput1, dragStart1, startPos1
+TopBar1.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging1 = true
+		dragStart1 = input.Position
+		startPos1 = MainFrame1.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then dragging1 = false end
+		end)
+	end
+end)
+TopBar1.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput1 = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput1 and dragging1 then
+		local delta = input.Position - dragStart1
+		MainFrame1.Position = UDim2.new(startPos1.X.Scale, startPos1.X.Offset + delta.X, startPos1.Y.Scale, startPos1.Y.Offset + delta.Y)
+	end
+end)
+
+-- เอฟเฟกต์วงกลมขอบม่วง & ดาวสีขาว
+local function playShockwave()
+	local shockGui = Instance.new("ScreenGui")
+	shockGui.IgnoreGuiInset = true
+	shockGui.Parent = game:GetService("CoreGui")
+
+	local circle = Instance.new("Frame")
+	circle.AnchorPoint = Vector2.new(0.5, 0.5)
+	circle.Position = UDim2.new(0.5, 0, 0.5, 0)
+	circle.Size = UDim2.new(0, 0, 0, 0)
+	circle.BackgroundTransparency = 1
+	circle.Parent = shockGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = circle
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(180, 0, 255)
+	stroke.Thickness = 12
+	stroke.Parent = circle
+
+	local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local sizeTween = TweenService:Create(circle, tweenInfo, {Size = UDim2.new(0, 3500, 0, 3500)})
+	local transTween = TweenService:Create(stroke, tweenInfo, {Transparency = 1})
+	sizeTween:Play()
+	transTween:Play()
+	sizeTween.Completed:Connect(function() shockGui:Destroy() end)
+end
+
+local function playWhiteStars()
+	local starGui = Instance.new("ScreenGui")
+	starGui.IgnoreGuiInset = true
+	starGui.Parent = game:GetService("CoreGui")
+
+	for i = 1, 14 do
+		local star = Instance.new("Frame")
+		star.Size = UDim2.new(0, 12, 0, 12)
+		star.Position = UDim2.new(0.5, 0, 0.5, 0)
+		star.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		star.BorderSizePixel = 0
+		star.Parent = starGui
+
+		local starCorner = Instance.new("UICorner")
+		starCorner.CornerRadius = UDim.new(1, 0)
+		starCorner.Parent = star
+
+		local angle = math.random() * (2 * math.pi)
+		local distance = math.random(60, 280)
+		local moveTween = TweenService:Create(star, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, math.cos(angle) * distance, 0.5, math.sin(angle) * distance),
+			Size = UDim2.new(0, 4, 0, 4),
+			BackgroundTransparency = 1
+		})
+		moveTween:Play()
+	end
+	task.delay(0.5, function() if starGui and starGui.Parent then starGui:Destroy() end end)
+end
+
+-- ระบบหน้าจอเทา, กระดูกสันหลัง, เงาสายรุ้ง 20 ตัว
+local ColorEffect = Instance.new("ColorCorrectionEffect")
+ColorEffect.Saturation = -1
+ColorEffect.Enabled = false
+ColorEffect.Parent = Lighting
+
+local CloneFolder = Instance.new("Folder")
+CloneFolder.Name = "RainbowAfterimages"
+CloneFolder.Parent = workspace
+
+local spineModel = nil
+local function createSpine(char)
+	if spineModel then spineModel:Destroy() end
+	local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+	if not torso then return end
+	spineModel = Instance.new("Model")
+	for i = -2, 2 do
+		local bone = Instance.new("Part")
+		bone.Size = Vector3.new(0.35, 0.25, 0.25)
+		bone.Color = Color3.fromRGB(0, 0, 0)
+		bone.Material = Enum.Material.SmoothPlastic
+		bone.CanCollide = false
+		bone.Massless = true
+		bone.CFrame = torso.CFrame * CFrame.new(0, i * 0.3, 0.6)
+		bone.Parent = spineModel
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = torso
+		weld.Part1 = bone
+		weld.Parent = bone
+	end
+	spineModel.Parent = char
+end
+
+local RainbowColors = {
+	Color3.fromRGB(0, 255, 0), Color3.fromRGB(0, 255, 255), Color3.fromRGB(0, 100, 255),
+	Color3.fromRGB(180, 0, 255), Color3.fromRGB(255, 0, 120), Color3.fromRGB(255, 128, 0), Color3.fromRGB(255, 255, 0)
+}
+
+local isSpeedEnabled = false
+local colorIndex = 1
+local activeClones = {}
+local spawnTimer = 0
+
+local function createAfterimage(char)
+	if #activeClones >= 20 then
+		local oldest = table.remove(activeClones, 1)
+		if oldest and oldest.Parent then oldest:Destroy() end
+	end
+	local cloneModel = Instance.new("Model")
+	local currentColor = RainbowColors[colorIndex]
+	colorIndex = (colorIndex % #RainbowColors) + 1
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Transparency < 1 then
+			local clonedPart = Instance.new("Part")
+			clonedPart.Size = part.Size
+			clonedPart.CFrame = part.CFrame
+			clonedPart.Anchored = true
+			clonedPart.CanCollide = false
+			clonedPart.Material = Enum.Material.Neon
+			clonedPart.Color = currentColor
+			clonedPart.Transparency = 0.4
+			clonedPart.Parent = cloneModel
+		end
+	end
+	cloneModel.Parent = CloneFolder
+	table.insert(activeClones, cloneModel)
+end
+
+local loop1 = RunService.Heartbeat:Connect(function(dt)
+	local char = LocalPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if isSpeedEnabled and char and hum then
+		hum.WalkSpeed = 300
+		ColorEffect.Enabled = true
+		if hum.MoveDirection.Magnitude > 0 then
+			spawnTimer = spawnTimer + dt
+			if spawnTimer >= 0.04 then
+				spawnTimer = 0
+				createAfterimage(char)
+			end
+		end
+	end
+end)
+
+ToggleBtn1.MouseButton1Click:Connect(function()
+	isSpeedEnabled = not isSpeedEnabled
+	local char = LocalPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if isSpeedEnabled then
+		ToggleBtn1.Text = "ความเร็ว : เปิด"
+		ToggleBtn1.BackgroundColor3 = Color3.fromRGB(40, 180, 90)
+		ColorEffect.Enabled = true
+		playShockwave()
+		playWhiteStars()
+		if char then createSpine(char) end
+	else
+		ToggleBtn1.Text = "ความเร็ว : ปิด"
+		ToggleBtn1.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+		ColorEffect.Enabled = false
+		for _, c in ipairs(activeClones) do if c then c:Destroy() end end
+		table.clear(activeClones)
+		if spineModel then spineModel:Destroy() spineModel = nil end
+		playShockwave()
+		if hum then hum.WalkSpeed = 16 end
+	end
+end)
+
+CloseBtn1.MouseButton1Click:Connect(function()
+	isSpeedEnabled = false
+	loop1:Disconnect()
+	ColorEffect:Destroy()
+	for _, c in ipairs(activeClones) do if c then c:Destroy() end end
+	if spineModel then spineModel:Destroy() end
+	CloneFolder:Destroy()
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	if hum then hum.WalkSpeed = 16 end
+	ScreenGui1:Destroy()
+end)
